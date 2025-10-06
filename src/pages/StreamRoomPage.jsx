@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import AgoraRTC, { AgoraRTCProvider, useRTCClient, useJoin, useRemoteUsers, usePublish, RemoteUser, useRemoteAudioTracks } from "agora-rtc-react";
 import ThemeToggle from '../components/ThemeToggle';
 import { UsersIcon, PlayIcon, StopIcon, UploadIcon } from '../components/Icons';
@@ -7,6 +7,7 @@ const VideoCall = ({ isHost, appId, roomId, token, user, onLeaveRoom }) => {
     const agoraClient = useRTCClient();
     const [isVideoEnabled, setIsVideoEnabled] = useState(false);
     const [customVideoTrack, setCustomVideoTrack] = useState(null);
+    const videoRef = useRef(null); // Ref for our hidden video element
 
     useJoin({ appid: appId, channel: roomId, token: token || null, uid: user.uid });
 
@@ -16,26 +17,45 @@ const VideoCall = ({ isHost, appId, roomId, token, user, onLeaveRoom }) => {
 
     usePublish(isHost && isVideoEnabled ? [customVideoTrack] : []);
 
-    const handleFileSelect = async (e) => {
+    const handleFileSelect = (e) => {
         const file = e.target.files[0];
-        if (!file) return;
+        if (!file || !videoRef.current) return;
 
-        if (customVideoTrack) {
-            customVideoTrack.stop();
-            customVideoTrack.close();
-        }
+        // Create an object URL for the selected file
+        const objectURL = URL.createObjectURL(file);
+        videoRef.current.src = objectURL;
+        videoRef.current.muted = true; // Mute the video to avoid sound
+        videoRef.current.playsInline = true; // Important for iOS
+        videoRef.current.style.display = 'none'; // Ensure it's hidden
 
-        try {
-            const track = await AgoraRTC.createCustomVideoTrack({ source: file, optimizationMode: "motion" });
-            track.on("track-ended", () => {
-              setIsVideoEnabled(false);
-              setCustomVideoTrack(null);
-            });
-            setCustomVideoTrack(track);
-            console.log("Custom video track created from file:", file.name);
-        } catch (error) {
-            console.error("Failed to create custom video track:", error);
-        }
+        // When the video is ready to be played, create the Agora track
+        videoRef.current.oncanplay = async () => {
+            // Play the video element before creating the track
+            await videoRef.current.play();
+
+            if (customVideoTrack) {
+                customVideoTrack.stop();
+                customVideoTrack.close();
+            }
+
+            try {
+                // Create the track from the video element
+                const track = await AgoraRTC.createCustomVideoTrack({ 
+                    source: videoRef.current, 
+                    optimizationMode: "motion" 
+                });
+
+                track.on("track-ended", () => {
+                  setIsVideoEnabled(false);
+                  setCustomVideoTrack(null);
+                });
+
+                setCustomVideoTrack(track);
+                console.log("Custom video track created from file:", file.name);
+            } catch (error) {
+                console.error("Failed to create custom video track:", error);
+            }
+        };
     };
 
     const handleStartStream = () => {
@@ -59,6 +79,9 @@ const VideoCall = ({ isHost, appId, roomId, token, user, onLeaveRoom }) => {
 
   return (
     <div className="flex-1 flex overflow-hidden">
+        {/* Hidden video element for processing the file */}
+        <video ref={videoRef} playsInline style={{ display: 'none' }} />
+
         <div className="flex-1 flex flex-col p-4 md:p-6 overflow-y-auto">
             <div className="flex-1 bg-gray-100 dark:bg-gray-900 rounded-2xl shadow-xl overflow-hidden mb-4 transition-colors duration-300 relative border border-gray-200 dark:border-gray-800">
                 {remoteUsers.map(user => (

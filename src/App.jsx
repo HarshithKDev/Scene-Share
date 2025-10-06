@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { auth } from './firebase';
-import { onAuthStateChanged } from "firebase/auth";
+import { onAuthStateChanged, signOut } from "firebase/auth";
 import LoginPage from './pages/LoginPage';
 import LobbyPage from './pages/LobbyPage';
 import StreamRoomPage from './pages/StreamRoomPage';
@@ -101,6 +101,15 @@ export default function App() {
     setAgoraToken(null);
     setIsHost(false);
   };
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      // The onAuthStateChanged listener will handle setting the view to 'login'
+    } catch (error) {
+      console.error("Error signing out:", error);
+    }
+  };
   
   const renderView = () => {
     switch (currentView) {
@@ -110,6 +119,7 @@ export default function App() {
             user={user}
             onCreateRoom={handleCreateRoom}
             onJoinRoom={handleJoinRoom}
+            onLogout={handleLogout}
             theme={theme}
             toggleTheme={toggleTheme}
           />

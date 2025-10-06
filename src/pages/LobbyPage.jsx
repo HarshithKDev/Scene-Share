@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import ThemeToggle from '../components/ThemeToggle';
-import { PlusIcon, UsersIcon } from '../components/Icons';
+import { PlusIcon, UsersIcon, LogoutIcon } from '../components/Icons';
 
-const LobbyPage = ({ user, onCreateRoom, onJoinRoom, theme, toggleTheme }) => {
+const LobbyPage = ({ user, onCreateRoom, onJoinRoom, onLogout, theme, toggleTheme }) => {
   const [roomId, setRoomId] = useState('');
 
   const handleCreateRoom = () => {
@@ -20,16 +20,28 @@ const LobbyPage = ({ user, onCreateRoom, onJoinRoom, theme, toggleTheme }) => {
 
   return (
     <div className="min-h-screen bg-white dark:bg-black transition-colors duration-300">
-      <ThemeToggle theme={theme} toggleTheme={toggleTheme} />
-      
       <div className="container mx-auto px-4 py-8">
-        <header className="mb-12 pt-8">
-          <h1 className="text-4xl md:text-5xl font-bold text-gray-900 dark:text-white mb-2">
-            Welcome back, {user?.displayName || user?.email?.split('@')[0] || 'User'}!
-          </h1>
-          <p className="text-gray-600 dark:text-gray-400 text-lg">
-            Ready to stream your favorite movies with friends?
-          </p>
+        <header className="mb-12 pt-8 flex justify-between items-center">
+          <div>
+            <h1 className="text-4xl md:text-5xl font-bold text-gray-900 dark:text-white mb-2">
+              Welcome back, {user?.displayName || user?.email?.split('@')[0] || 'User'}!
+            </h1>
+            <p className="text-gray-600 dark:text-gray-400 text-lg">
+              Ready to stream your favorite movies with friends?
+            </p>
+          </div>
+
+          {/* Island element for theme + logout */}
+          <div className="flex items-center gap-3 bg-gray-100 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-full px-4 py-2 shadow-lg">
+            <ThemeToggle theme={theme} toggleTheme={toggleTheme} />
+            <button
+              onClick={onLogout}
+              className="flex items-center gap-2 bg-red-600 dark:bg-red-500 text-white py-2 px-4 rounded-full font-semibold hover:bg-red-700 dark:hover:bg-red-600 transition-colors duration-300"
+            >
+              <LogoutIcon />
+              Logout
+            </button>
+          </div>
         </header>
 
         <div className="grid md:grid-cols-2 gap-8 max-w-5xl mx-auto">
