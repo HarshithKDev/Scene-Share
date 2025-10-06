@@ -1,22 +1,51 @@
 import React, { useState } from 'react';
 import ThemeToggle from '../components/ThemeToggle';
 import { GoogleIcon } from '../components/Icons';
+import { 
+  auth, 
+  signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword, 
+  signInWithPopup, 
+  googleProvider 
+} from '../firebase';
 
-const LoginPage = ({ onLogin, theme, toggleTheme }) => {
+const LoginPage = ({ theme, toggleTheme }) => {
   const [activeTab, setActiveTab] = useState('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    console.log(`${activeTab} action triggered with email: ${email}`);
-    onLogin({ name: email.split('@')[0], email });
+    setError(''); // Clear previous errors
+    try {
+      if (activeTab === 'login') {
+        await signInWithEmailAndPassword(auth, email, password);
+      } else {
+        await createUserWithEmailAndPassword(auth, email, password);
+      }
+      // onAuthStateChanged in App.jsx will handle navigation
+    } catch (err) {
+      setError(err.message);
+      console.error("Firebase authentication error:", err);
+    }
   };
 
-  const handleGoogleSignIn = () => {
-    console.log('Google sign-in triggered');
-    onLogin({ name: 'Guest User', email: 'guest@example.com' });
+  const handleGoogleSignIn = async () => {
+    setError('');
+    try {
+      await signInWithPopup(auth, googleProvider);
+      // onAuthStateChanged in App.jsx will handle navigation
+    } catch (err) {
+      setError(err.message);
+      console.error("Google sign-in error:", err);
+    }
   };
+
+  // ... (The rest of your JSX for LoginPage remains the same)
+  // ... Make sure to display the `error` state somewhere in your UI if you want to show it to the user.
+  // For example:
+  // {error && <p className="text-red-500 text-center mt-4">{error}</p>}
 
   return (
     <div className="min-h-screen bg-white dark:bg-[#0B1320] transition-colors duration-300 flex items-center justify-center p-4">
@@ -50,6 +79,8 @@ const LoginPage = ({ onLogin, theme, toggleTheme }) => {
               Sign Up
             </button>
           </div>
+
+          {error && <p className="text-red-500 text-sm text-center mb-4">{error}</p>}
 
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
