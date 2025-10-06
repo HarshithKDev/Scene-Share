@@ -24,4 +24,4 @@ dist-ssr
 *.sw?
 server/.env
 # Environment variables
-.env.local
+.env.localserver/.env
