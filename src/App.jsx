@@ -1,33 +1,32 @@
 import React, { useState, useEffect } from 'react';
-import { auth } from './firebase'; // Import auth from your firebase config
+import { auth } from './firebase';
 import { onAuthStateChanged } from "firebase/auth";
 import LoginPage from './pages/LoginPage';
 import LobbyPage from './pages/LobbyPage';
 import StreamRoomPage from './pages/StreamRoomPage';
 import './index.css';
 
+// The URL of your running backend server
+const BACKEND_URL = 'http://localhost:8080';
+
 export default function App() {
-  const [currentView, setCurrentView] = useState('loading'); // Start with a loading state
+  const [currentView, setCurrentView] = useState('loading');
   const [theme, setTheme] = useState('dark');
   const [user, setUser] = useState(null);
   const [roomId, setRoomId] = useState('');
   const [isHost, setIsHost] = useState(false);
-  
+  const [agoraToken, setAgoraToken] = useState(null); // State to hold the Agora token
+
   useEffect(() => {
-    // Listen for authentication state changes
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       if (currentUser) {
-        // User is signed in
         setUser(currentUser);
         setCurrentView('lobby');
       } else {
-        // User is signed out
         setUser(null);
         setCurrentView('login');
       }
     });
-
-    // Clean up the subscription on unmount
     return () => unsubscribe();
   }, []);
 
@@ -43,25 +42,67 @@ export default function App() {
     setTheme(theme === 'dark' ? 'light' : 'dark');
   };
 
-  const handleCreateRoom = () => {
-    const newRoomId = `movie-night-${Math.random().toString(36).substr(2, 9)}`;
-    setRoomId(newRoomId);
-    setIsHost(true);
-    setCurrentView('room');
+  const fetchAgoraToken = async (channelName) => {
+    if (!user) {
+      alert("You must be logged in to join a room.");
+      return null;
+    }
+    
+    try {
+      const idToken = await user.getIdToken();
+      const response = await fetch(`${BACKEND_URL}/get-agora-token`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({ channelName }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to get token: ${errorText}`);
+      }
+
+      const data = await response.json();
+      return data.token;
+
+    } catch (error) {
+      console.error("Error fetching Agora token:", error);
+      alert(`Error: ${error.message}`);
+      return null;
+    }
   };
 
-  const handleJoinRoom = (id) => {
-    setRoomId(id);
-    setIsHost(false);
-    setCurrentView('room');
+  const handleCreateRoom = async () => {
+    const newRoomId = `movie-night-${Math.random().toString(36).substr(2, 9)}`;
+    const token = await fetchAgoraToken(newRoomId);
+    if (token) {
+      setRoomId(newRoomId);
+      setAgoraToken(token);
+      setIsHost(true);
+      setCurrentView('room');
+    }
+  };
+
+  const handleJoinRoom = async (id) => {
+    const token = await fetchAgoraToken(id);
+    if (token) {
+      setRoomId(id);
+      setAgoraToken(token);
+      setIsHost(false);
+      setCurrentView('room');
+    }
   };
 
   const handleLeaveRoom = () => {
     setCurrentView('lobby');
     setRoomId('');
+    setAgoraToken(null);
     setIsHost(false);
   };
-
+  
+  // ... (renderView function remains the same, but we pass more props now)
   const renderView = () => {
     switch (currentView) {
       case 'lobby':
@@ -79,10 +120,12 @@ export default function App() {
           <StreamRoomPage
             isHost={isHost}
             roomId={roomId}
+            token={agoraToken}
+            user={user}
             onLeaveRoom={handleLeaveRoom}
             theme={theme}
             toggleTheme={toggleTheme}
-            appId={import.meta.env.VITE_AGORA_APP_ID} // Pass App ID from environment variable
+            appId={import.meta.env.VITE_AGORA_APP_ID}
           />
         );
       case 'login':
@@ -91,7 +134,6 @@ export default function App() {
         );
       case 'loading':
       default:
-        // Optional: A loading spinner or splash screen
         return <div className="min-h-screen bg-white dark:bg-[#0B1320]"></div>;
     }
   };
