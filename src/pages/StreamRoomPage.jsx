@@ -1,11 +1,10 @@
 import React, { useState } from 'react';
-import AgoraRTC, { AgoraRTCProvider, useRTCClient, useJoin, useRemoteUsers, usePublish, createCustomVideoTrack, AgoraVideoPlayer } from "agora-rtc-react";
+import AgoraRTC, { AgoraRTCProvider, useRTCClient, useJoin, useRemoteUsers, usePublish, RemoteUser, useRemoteAudioTracks } from "agora-rtc-react";
 import ThemeToggle from '../components/ThemeToggle';
 import { UsersIcon, PlayIcon, StopIcon, UploadIcon } from '../components/Icons';
 
 // This is the main component that handles the video logic
 const VideoCall = ({ isHost, appId, roomId, token, user, onLeaveRoom }) => {
-    // ... (All the state and hooks from the previous version of VideoCall remain here)
     const agoraClient = useRTCClient();
     const [isVideoEnabled, setIsVideoEnabled] = useState(false);
     const [customVideoTrack, setCustomVideoTrack] = useState(null);
@@ -17,7 +16,7 @@ const VideoCall = ({ isHost, appId, roomId, token, user, onLeaveRoom }) => {
     audioTracks.forEach((track) => track.play());
 
     usePublish(isHost && isVideoEnabled ? [customVideoTrack] : []);
-  
+
     const handleFileSelect = async (e) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -28,7 +27,11 @@ const VideoCall = ({ isHost, appId, roomId, token, user, onLeaveRoom }) => {
         }
 
         try {
-            const track = await createCustomVideoTrack({ source: file, optimizationMode: "motion" });
+            const track = await AgoraRTC.createCustomVideoTrack({ source: file, optimizationMode: "motion" });
+            track.on("track-ended", () => {
+              setIsVideoEnabled(false);
+              setCustomVideoTrack(null);
+            });
             setCustomVideoTrack(track);
             console.log("Custom video track created from file:", file.name);
         } catch (error) {
@@ -60,9 +63,12 @@ const VideoCall = ({ isHost, appId, roomId, token, user, onLeaveRoom }) => {
         <div className="flex-1 flex flex-col p-4 md:p-6 overflow-y-auto">
             <div className="flex-1 bg-[#B1D4E0] dark:bg-[#1C3F60] rounded-2xl shadow-xl overflow-hidden mb-4 transition-colors duration-300 relative">
                 {/* Video Player Logic */}
-                {remoteUsers.find(user => user.hasVideo) ? (
-                    <AgoraVideoPlayer videoTrack={remoteUsers.find(user => user.hasVideo).videoTrack} style={{ height: '100%', width: '100%', objectFit: 'contain' }}/>
-                ) : (
+                {remoteUsers.map(user => (
+                  <div key={user.uid} className="h-full">
+                    <RemoteUser user={user} style={{ height: '100%', width: '100%', objectFit: 'contain' }} />
+                  </div>
+                ))}
+                {remoteUsers.length === 0 && (
                     <div className="h-full flex items-center justify-center p-8 text-center text-[#1C3F60]/70 dark:text-[#AFC1D0]">
                         {isHost ? 'Select a movie file and click "Start Stream" to begin' : 'Waiting for the host to start the stream...'}
                     </div>
