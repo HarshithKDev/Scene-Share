@@ -41,8 +41,10 @@ const LoginPage = ({ theme, toggleTheme }) => {
   };
 
   return (
-    <div className="min-h-screen bg-white dark:bg-black transition-colors duration-300 flex items-center justify-center p-4">
-      <ThemeToggle theme={theme} toggleTheme={toggleTheme} />
+    <div className="min-h-screen bg-white dark:bg-black transition-colors duration-300 flex items-center justify-center p-4 relative">
+      <div className="absolute top-6 right-6 z-50">
+        <ThemeToggle theme={theme} toggleTheme={toggleTheme} />
+      </div>
       
       <div className="w-full max-w-md">
         <h1 className="text-5xl md:text-6xl font-bold text-center mb-12 text-gray-900 dark:text-white tracking-tight">
