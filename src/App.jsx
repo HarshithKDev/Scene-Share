@@ -15,7 +15,7 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [roomId, setRoomId] = useState('');
   const [isHost, setIsHost] = useState(false);
-  const [agoraToken, setAgoraToken] = useState(null); // State to hold the Agora token
+  const [agoraToken, setAgoraToken] = useState(null);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -102,7 +102,6 @@ export default function App() {
     setIsHost(false);
   };
   
-  // ... (renderView function remains the same, but we pass more props now)
   const renderView = () => {
     switch (currentView) {
       case 'lobby':
@@ -134,7 +133,7 @@ export default function App() {
         );
       case 'loading':
       default:
-        return <div className="min-h-screen bg-white dark:bg-[#0B1320]"></div>;
+        return <div className="min-h-screen bg-white dark:bg-black"></div>;
     }
   };
   
