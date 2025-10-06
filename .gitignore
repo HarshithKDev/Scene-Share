@@ -27,3 +27,4 @@ server/.env
 .env.localserver/.env
 .env.local
 server/node_modules
+node_modules
