@@ -74,3 +74,13 @@ export const MicrophoneIcon = () => (
 export const MicrophoneSlashIcon = () => (
     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3zM1 1l22 22" /></svg>
 );
+
+// Add these to src/components/Icons.jsx
+
+// Add this to the end of src/components/Icons.jsx
+
+export const PauseIcon = () => (
+    <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 20 20">
+        <path d="M5.5 4A1.5 1.5 0 017 5.5v9A1.5 1.5 0 015.5 16h-1A1.5 1.5 0 013 14.5v-9A1.5 1.5 0 014.5 4h1zM14.5 4A1.5 1.5 0 0116 5.5v9a1.5 1.5 0 01-1.5 1.5h-1a1.5 1.5 0 01-1.5-1.5v-9A1.5 1.5 0 0113.5 4h1z" />
+    </svg>
+);
