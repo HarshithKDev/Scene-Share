@@ -26,8 +26,8 @@ const MovieControls = ({ onPlayPause, onSeek, onSpeedChange, isPaused, progress,
 
     return (
         <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/80 to-transparent text-white flex items-center gap-4">
-            <button 
-                onClick={onPlayPause} 
+            <button
+                onClick={onPlayPause}
                 className="p-2 hover:bg-white/20 rounded-full transition-colors"
                 disabled={!isHost}
             >
@@ -81,10 +81,10 @@ const StreamRoomLayout = ({
                         if (isHost && mainViewTrack) {
                             return (
                                 <div className="relative w-full h-full">
-                                    <LocalVideoTrack 
-                                        track={mainViewTrack} 
-                                        play={true} 
-                                        style={{ width: '100%', height: '100%', objectFit: 'contain' }} 
+                                    <LocalVideoTrack
+                                        track={mainViewTrack}
+                                        play={true}
+                                        style={{ width: '100%', height: '100%', objectFit: 'contain' }}
                                     />
                                 </div>
                             );
@@ -94,11 +94,11 @@ const StreamRoomLayout = ({
                                 // Participant has received the movie stream
                                 return (
                                     <div className="relative w-full h-full">
-                                        <RemoteUser 
-                                            user={remoteUsers[0]} 
-                                            playVideo={true} 
-                                            playAudio={true} 
-                                            style={{ width: '100%', height: '100%', objectFit: 'contain' }} 
+                                        <RemoteUser
+                                            user={remoteUsers[0]}
+                                            playVideo={true}
+                                            playAudio={true}
+                                            style={{ width: '100%', height: '100%', objectFit: 'contain' }}
                                         />
                                     </div>
                                 );
@@ -114,7 +114,7 @@ const StreamRoomLayout = ({
                         }
                         return <div className="text-white">Loading movie...</div>;
                     }
-                    
+
                     // Case 2: Exactly two participants and no movie
                     if (totalParticipants === 2) {
                          return (
@@ -136,7 +136,7 @@ const StreamRoomLayout = ({
                             </div>
                         );
                     }
-                    
+
                     // Case 3: More than two participants
                     if (!isHost && remoteUsers.length > 0) {
                          return <RemoteUser user={remoteUsers[0]} playVideo={true} playAudio={true} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />;
@@ -154,14 +154,14 @@ const StreamRoomLayout = ({
                     <MovieControls {...movieProps} isHost={isHost} />
                 )}
             </main>
-            
+
             <aside className="w-full md:max-w-sm bg-gray-900/80 backdrop-blur-lg p-4 flex flex-col space-y-4 overflow-y-auto">
                 <div className="text-center">
                     <h2 className="text-white text-xl font-bold">Room ID</h2>
                     <p className="text-gray-400 text-sm break-all">{roomId}</p>
                 </div>
                 <h3 className="text-white text-lg font-bold flex items-center gap-2 shrink-0"><UsersIcon /> Participants ({totalParticipants})</h3>
-                
+
                 <div className="relative rounded-lg overflow-hidden bg-black shrink-0">
                     {cameraOn && selfViewTrack ? (
                         <LocalVideoTrack track={selfViewTrack} play={true} style={{ width: '100%', aspectRatio: '16/9', objectFit: 'cover' }} />
@@ -181,7 +181,7 @@ const StreamRoomLayout = ({
                         <div className="absolute top-0 left-0 p-2"><span className="bg-black/60 text-white text-xs px-2 py-1 rounded">{remoteUser.uid}</span></div>
                     </div>
                 ))}
-                
+
                 <div className="flex-grow"></div>
 
                 <div className="mt-auto shrink-0">
