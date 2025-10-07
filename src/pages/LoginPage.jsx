@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import ThemeToggle from '../components/ThemeToggle';
 import { GoogleIcon } from '../components/Icons';
-import { 
-  auth, 
-  signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword, 
-  signInWithPopup, 
-  googleProvider 
+import {
+  auth,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signInWithPopup,
+  googleProvider
 } from '../firebase';
 
 const LoginPage = ({ theme, toggleTheme }) => {
@@ -43,9 +43,9 @@ const LoginPage = ({ theme, toggleTheme }) => {
   return (
     <div className="min-h-screen bg-white dark:bg-black transition-colors duration-300 flex items-center justify-center p-4 relative">
       <div className="absolute top-6 right-6 z-50">
-        <ThemeToggle theme={theme} toggleTheme={toggleTheme} />
+        <ThemeToggle theme={theme} toggleTheme={toggleTheme} className="!bg-transparent !border-none !text-white transform transition-transform duration-200 hover:scale-110" />
       </div>
-      
+
       <div className="w-full max-w-md">
         <h1 className="text-5xl md:text-6xl font-bold text-center mb-12 text-gray-900 dark:text-white tracking-tight">
           Scene-Share

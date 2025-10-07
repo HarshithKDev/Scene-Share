@@ -22,10 +22,10 @@ const LobbyPage = ({ user, onCreateRoom, onJoinRoom, onLogout, theme, toggleThem
     <div className="min-h-screen bg-white dark:bg-black transition-colors duration-300 relative">
       {/* Top-right aligned controls */}
       <div className="absolute top-6 right-6 z-50 flex items-center gap-4">
-        <ThemeToggle theme={theme} toggleTheme={toggleTheme} />
+        <ThemeToggle theme={theme} toggleTheme={toggleTheme} className="!bg-transparent !border-none !text-white transform transition-transform duration-200 hover:scale-110" />
         <button
           onClick={onLogout}
-          className="p-3 rounded-full bg-gray-900 dark:bg-gray-100 text-white dark:text-black hover:bg-red-700 dark:hover:bg-red-500 transition-all duration-300 shadow-lg border border-gray-700 dark:border-gray-300"
+          className="text-white hover:text-red-500 transform transition-transform duration-200 hover:scale-110"
           aria-label="Logout"
         >
           <LogoutIcon />
