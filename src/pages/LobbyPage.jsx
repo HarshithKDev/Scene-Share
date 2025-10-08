@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import ThemeToggle from '../components/ThemeToggle';
-import { PlusIcon, UsersIcon, LogoutIcon } from '../components/Icons';
+import { PlusIcon, UsersIcon, LogoutIcon, ProfileIcon } from '../components/Icons';
 
-const LobbyPage = ({ user, onCreateRoom, onJoinRoom, onLogout, theme, toggleTheme }) => {
+const LobbyPage = ({ user, onCreateRoom, onJoinRoom, onLogout, onEditUsername, theme, toggleTheme }) => {
   const [roomId, setRoomId] = useState('');
+  const [showMenu, setShowMenu] = useState(false);
 
   const handleCreateRoom = () => {
     console.log('Create room action triggered');
@@ -18,18 +19,29 @@ const LobbyPage = ({ user, onCreateRoom, onJoinRoom, onLogout, theme, toggleThem
     }
   };
 
+  const handleEditUsernameClick = () => {
+    onEditUsername();
+    setShowMenu(false);
+  };
+
   return (
     <div className="min-h-screen bg-white dark:bg-black transition-colors duration-300 relative">
-      {/* Top-right aligned controls */}
       <div className="absolute top-6 right-6 z-50 flex items-center gap-4">
         <ThemeToggle theme={theme} toggleTheme={toggleTheme} className="!bg-transparent !border-none !text-white transform transition-transform duration-200 hover:scale-110" />
-        <button
-          onClick={onLogout}
-          className="text-white hover:text-red-500 transform transition-transform duration-200 hover:scale-110"
-          aria-label="Logout"
-        >
-          <LogoutIcon />
-        </button>
+        <div className="relative">
+          <button onClick={() => setShowMenu(!showMenu)} className="text-white transform transition-transform duration-200 hover:scale-110">
+            <ProfileIcon />
+          </button>
+          {showMenu && (
+            <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-md shadow-lg py-1 z-10">
+              <button onClick={handleEditUsernameClick} className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 w-full text-left">Edit Username</button>
+              <button onClick={onLogout} className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 w-full text-left">
+                <LogoutIcon />
+                Logout
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="container mx-auto px-4 py-8">

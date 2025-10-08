@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { auth } from './firebase';
+import { auth, updateProfile } from './firebase';
 import { onAuthStateChanged, signOut } from "firebase/auth";
-import { Routes, Route, useNavigate, useParams, Navigate, useLocation } from 'react-router-dom';
+import { Routes, Route, useNavigate, useParams, Navigate } from 'react-router-dom';
 import LoginPage from './pages/LoginPage';
 import LobbyPage from './pages/LobbyPage';
 import StreamRoomPageWrapper from './pages/StreamRoomPage';
+import UsernameModal from './components/UsernameModal';
 import './index.css';
 
 const BACKEND_URL = "";
@@ -13,6 +14,8 @@ export default function App() {
   const [theme, setTheme] = useState('dark');
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [showUsernameModal, setShowUsernameModal] = useState(false);
+  const [isNewUser, setIsNewUser] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -29,11 +32,34 @@ export default function App() {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
+      if (currentUser) {
+        // Check if it's a new user without a display name
+        const isNew = currentUser.metadata.creationTime === currentUser.metadata.lastSignInTime;
+        if ((isNew && !currentUser.displayName) || !currentUser.displayName) {
+          setIsNewUser(true);
+          setShowUsernameModal(true);
+        }
+        setUser(currentUser);
+      } else {
+        setUser(null);
+      }
       setLoading(false);
     });
     return () => unsubscribe();
   }, []);
+  
+  const handleUpdateUsername = (newUsername) => {
+    const userToUpdate = auth.currentUser;
+    if (userToUpdate && newUsername) {
+      updateProfile(userToUpdate, { displayName: newUsername }).then(() => {
+        setUser({ ...userToUpdate, displayName: newUsername });
+        setShowUsernameModal(false);
+        setIsNewUser(false); 
+      }).catch((error) => {
+        console.error("Error updating profile: ", error);
+      });
+    }
+  };
 
   const fetchAgoraToken = async (channelName) => {
     if (!user) return null;
@@ -60,16 +86,13 @@ export default function App() {
   };
 
   const handleCreateRoom = async () => {
-    if (!user) return; // Ensure user object is available
+    if (!user) return;
     const roomCode = Math.floor(100000 + Math.random() * 900000).toString();
-    // Embed host's UID in the room ID for persistence
     const newRoomId = `${roomCode}-host-${user.uid}`;
-    // Navigate with state for the initial render
     navigate(`/room/${newRoomId}`, { state: { isHost: true } });
   };
 
   const handleJoinRoom = (id) => {
-    // For joining users, isHost will be determined by the room ID check
     navigate(`/room/${id}`, { state: { isHost: false } });
   };
 
@@ -82,13 +105,15 @@ export default function App() {
     navigate('/login');
   };
 
-  // This is a sub-component that handles the logic for a single room page.
+  const openEditUsernameModal = () => {
+    setIsNewUser(false);
+    setShowUsernameModal(true);
+  };
+
   const Room = () => {
     const { roomId } = useParams();
     const [agoraToken, setAgoraToken] = useState(null);
     const [loadingToken, setLoadingToken] = useState(true);
-
-    // Determine host status from the roomId. This persists on refresh.
     const isHost = user && roomId.includes(`-host-${user.uid}`);
 
     useEffect(() => {
@@ -127,10 +152,13 @@ export default function App() {
   }
   
   return (
-    <Routes>
-      <Route path="/login" element={!user ? <LoginPage theme={theme} toggleTheme={toggleTheme} /> : <Navigate to="/" />} />
-      <Route path="/" element={user ? <LobbyPage user={user} onCreateRoom={handleCreateRoom} onJoinRoom={handleJoinRoom} onLogout={handleLogout} theme={theme} toggleTheme={toggleTheme} /> : <Navigate to="/login" />} />
-      <Route path="/room/:roomId" element={user ? <Room /> : <Navigate to="/login" />} />
-    </Routes>
+    <>
+      {showUsernameModal && <UsernameModal onSubmit={handleUpdateUsername} isNewUser={isNewUser} />}
+      <Routes>
+        <Route path="/login" element={!user ? <LoginPage theme={theme} toggleTheme={toggleTheme} /> : <Navigate to="/" />} />
+        <Route path="/" element={user ? <LobbyPage user={user} onCreateRoom={handleCreateRoom} onJoinRoom={handleJoinRoom} onLogout={handleLogout} onEditUsername={openEditUsernameModal} theme={theme} toggleTheme={toggleTheme} /> : <Navigate to="/login" />} />
+        <Route path="/room/:roomId" element={user ? <Room /> : <Navigate to="/login" />} />
+      </Routes>
+    </>
   );
 }
