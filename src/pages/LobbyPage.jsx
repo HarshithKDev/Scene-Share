@@ -58,7 +58,7 @@ const LobbyPage = ({ user, onCreateRoom, onJoinRoom, onLogout, theme, toggleThem
               onClick={handleCreateRoom}
               className="w-full bg-black dark:bg-white text-white dark:text-black py-3 rounded-lg font-semibold hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors duration-300 shadow-lg"
             >
-              Create New Room
+              Start a New Stream
             </button>
           </div>
 
