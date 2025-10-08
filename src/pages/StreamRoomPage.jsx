@@ -18,75 +18,24 @@ import {
   MicrophoneIcon,
   MicrophoneSlashIcon,
   LogoutIcon,
-  PlayIcon,
-  PauseIcon,
   StopIcon,
   CopyIcon,
   CheckIcon
 } from '../components/Icons';
-
-// --- Movie Controls Component ---
-const MovieControls = ({ onPlayPause, onSeek, onSpeedChange, isPaused, progress, currentTime, duration, playbackRate, isHost }) => {
-  const formatTime = (timeInSeconds) => {
-    if (isNaN(timeInSeconds) || timeInSeconds === 0) return '0:00';
-    const minutes = Math.floor(timeInSeconds / 60);
-    const seconds = Math.floor(timeInSeconds % 60).toString().padStart(2, '0');
-    return `${minutes}:${seconds}`;
-  };
-
-  return (
-    <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/80 to-transparent text-white flex items-center gap-4">
-      <button
-        onClick={onPlayPause}
-        className="p-2 hover:bg-white/20 rounded-full transition-colors"
-        disabled={!isHost}
-      >
-        {isPaused ? <PlayIcon /> : <PauseIcon />}
-      </button>
-      <span className="text-sm font-mono">{formatTime(currentTime)}</span>
-      <input
-        type="range"
-        min="0"
-        max="100"
-        value={progress}
-        onChange={onSeek}
-        disabled={!isHost}
-        className="flex-1 h-1 bg-white/20 rounded-lg appearance-none cursor-pointer disabled:cursor-not-allowed"
-      />
-      <span className="text-sm font-mono">{formatTime(duration)}</span>
-      <div className="flex items-center gap-2">
-        {[1, 1.5, 2].map(rate => (
-          <button
-            key={rate}
-            onClick={() => onSpeedChange(rate)}
-            disabled={!isHost}
-            className={`px-2 py-1 text-xs rounded transition-colors disabled:cursor-not-allowed ${
-              playbackRate === rate ? 'bg-white text-black' : 'bg-white/20 hover:bg-white/30'
-            }`}
-          >
-            {rate}x
-          </button>
-        ))}
-      </div>
-      {!isHost && <span className="text-xs text-gray-300 ml-2">Host controls</span>}
-    </div>
-  );
-};
 
 // --- Visual Layout Component ---
 const StreamRoomLayout = ({
   isHost, user, mainViewTrack, selfViewTrack, remoteUsers,
   toggleMic, toggleCamera, micOn, cameraOn,
   handleLeave, theme, toggleTheme, isConnected,
-  handleStartStream, isMoviePlaying, movieProps, roomId, handleStopMovie
+  handleStartStream, isMoviePlaying, roomId, handleStopMovie, hostUid, dataStreamReady
 }) => {
   const [copied, setCopied] = useState(false);
   
-  const roomCode = roomId.split('-host-')[0];
-  const hostUid = isHost ? user.uid : roomId.split('-host-')[1];
+  const roomCode = roomId;
   
-  const hostUser = remoteUsers.find(u => u.uid.toString() === hostUid.toString());
-  const participantUsers = remoteUsers.filter(u => u.uid.toString() !== hostUid.toString());
+  const hostUser = remoteUsers.find(u => u.uid.toString() === hostUid?.toString());
+  const participantUsers = remoteUsers.filter(u => u.uid.toString() !== hostUid?.toString());
   const totalParticipants = 1 + remoteUsers.length;
 
   const handleCopyRoomId = () => {
@@ -127,7 +76,6 @@ const StreamRoomLayout = ({
             return (
                 <div className="text-white text-center">
                     <div className="text-lg mb-2">Waiting for host's movie stream...</div>
-                    <div className="text-sm text-gray-400">Remote users: {remoteUsers.length}</div>
                 </div>
             );
           }
@@ -138,10 +86,6 @@ const StreamRoomLayout = ({
             </div>
           );
         })()}
-
-        {isMoviePlaying && (
-          <MovieControls {...movieProps} isHost={isHost} />
-        )}
       </main>
 
       <aside className="w-full md:max-w-sm bg-gray-900/80 backdrop-blur-lg p-4 flex flex-col space-y-4 overflow-y-auto">
@@ -183,7 +127,11 @@ const StreamRoomLayout = ({
           {isHost && (
             <div className="mb-4">
               {!isMoviePlaying ? (
-                <button onClick={handleStartStream} className={`w-full flex items-center justify-center gap-2 text-white py-2 px-4 rounded-full font-semibold transition-colors ${isConnected ? 'bg-blue-600 hover:bg-blue-700 cursor-pointer' : 'bg-gray-500 cursor-not-allowed'}`} disabled={!isConnected}>
+                <button 
+                  onClick={handleStartStream} 
+                  className={`w-full flex items-center justify-center gap-2 text-white py-2 px-4 rounded-full font-semibold transition-colors ${isConnected && dataStreamReady ? 'bg-blue-600 hover:bg-blue-700 cursor-pointer' : 'bg-gray-500 cursor-not-allowed'}`} 
+                  disabled={!isConnected || !dataStreamReady}
+                >
                   <VideoCameraIcon /> Start Stream
                 </button>
               ) : (
@@ -209,126 +157,97 @@ const StreamRoomPage = ({ isHost, roomId, token, user, onLeaveRoom, theme, toggl
   const [micOn, setMicOn] = useState(false);
   const [cameraOn, setCameraOn] = useState(false);
   const [isMoviePlaying, setIsMoviePlaying] = useState(false);
-  const [isMoviePaused, setIsMoviePaused] = useState(true);
   const [mainViewTrack, setMainViewTrack] = useState(null);
   const [selfViewTrack, setSelfViewTrack] = useState(null);
-  const [movieProgress, setMovieProgress] = useState(0);
-  const [movieTime, setMovieTime] = useState({ current: 0, duration: 0 });
-  const [playbackRate, setPlaybackRate] = useState(1);
+  const [hostUid, setHostUid] = useState(isHost ? user.uid : null);
+  const [dataStreamReady, setDataStreamReady] = useState(false);
 
   const localMicrophoneTrackRef = useRef(null);
   const localCameraTrackRef = useRef(null);
   const movieTrackRef = useRef(null);
-  const movieVideoElementRef = useRef(null);
   const tracksInitialized = useRef(false);
   const dataStreamIdRef = useRef(null);
-  const hostUid = isHost ? user.uid : roomId.split('-host-')[1];
+  
+  const isHostRef = useRef(isHost);
+  useEffect(() => {
+    isHostRef.current = isHost;
+  }, [isHost]);
 
   useJoin({ appid: appId, channel: roomId, token: token || null, uid: user.uid });
   const remoteUsers = useRemoteUsers();
   const { audioTracks } = useRemoteAudioTracks(remoteUsers);
 
-  // Play remote audio (voice chat)
   useEffect(() => {
     audioTracks.forEach((track) => {
       try { track.play(); } catch (e) { /* ignore play errors */ }
     });
   }, [audioTracks]);
 
-  // Data stream creation after join
   useEffect(() => {
-    if (!agoraClient || connectionState !== 'CONNECTED') return;
+    if (!agoraClient || connectionState !== 'CONNECTED' || dataStreamReady) {
+      return;
+    }
 
+    console.log("Attempting to create data stream...");
     let mounted = true;
     const createStream = async () => {
       try {
-        // createDataStream is part of Agora SDK v4 client
         const streamId = await agoraClient.createDataStream({ reliable: true, ordered: true });
-        if (mounted) dataStreamIdRef.current = streamId;
+        if (mounted) {
+          console.log("Data stream created successfully, streamId:", streamId);
+          dataStreamIdRef.current = streamId;
+          setDataStreamReady(true);
+        }
       } catch (err) {
-        console.warn("createDataStream failed", err);
+        console.error("Fatal: createDataStream failed", err);
       }
     };
     createStream();
 
     return () => { mounted = false; };
-  }, [agoraClient, connectionState]);
+  }, [agoraClient, connectionState, dataStreamReady]);
 
-  // Listen for synchronization messages
   useEffect(() => {
     if (!agoraClient) return;
 
-    const handleStreamMessage = (uid, streamId, msg) => {
-      // Agora sendStreamMessage provides (uid, streamId, msg)
+    const handleStreamMessage = (uid, msg) => {
+      if (isHostRef.current || uid === user.uid) {
+        return; 
+      }
+      
       let data = msg;
       if (msg instanceof Uint8Array) {
         try { data = new TextDecoder().decode(msg); } catch (e) { data = msg; }
       }
       try {
         const message = typeof data === 'string' ? JSON.parse(data) : data;
-        if (!isHost) {
-          const videoElement = movieVideoElementRef.current;
-          switch (message.type) {
-            case 'MOVIE_START':
-              setIsMoviePlaying(true);
-              setIsMoviePaused(false);
-              break;
-            case 'MOVIE_STOP':
-              setIsMoviePlaying(false);
-              setIsMoviePaused(true);
-              setMovieProgress(0);
-              setMovieTime({ current: 0, duration: 0 });
-              setMainViewTrack(null);
-              break;
-            case 'MOVIE_PLAY':
-              if (videoElement) { videoElement.play().catch(()=>{}); setIsMoviePaused(false); }
-              break;
-            case 'MOVIE_PAUSE':
-              if (videoElement) { videoElement.pause(); setIsMoviePaused(true); }
-              break;
-            case 'MOVIE_SEEK':
-              if (videoElement && message.time !== undefined) {
-                videoElement.currentTime = message.time;
-                const progress = (message.time / message.duration) * 100;
-                setMovieProgress(progress);
-                setMovieTime({ current: message.time, duration: message.duration });
-              }
-              break;
-            case 'MOVIE_SPEED':
-              if (videoElement && message.rate !== undefined) {
-                videoElement.playbackRate = message.rate;
-                setPlaybackRate(message.rate);
-              }
-              break;
-            case 'MOVIE_SYNC':
-              if (videoElement) {
-                videoElement.currentTime = message.currentTime;
-                videoElement.playbackRate = message.playbackRate;
-                if (message.isPaused) videoElement.pause(); else videoElement.play().catch(()=>{});
-                setMovieProgress((message.currentTime / message.duration) * 100);
-                setMovieTime({ current: message.currentTime, duration: message.duration });
-                setPlaybackRate(message.playbackRate);
-                setIsMoviePaused(message.isPaused);
-              }
-              break;
-            default:
-              break;
-          }
+        
+        switch (message.type) {
+          case 'MOVIE_START':
+            setIsMoviePlaying(true);
+            if (message.hostUid) {
+              setHostUid(message.hostUid);
+            }
+            break;
+          case 'MOVIE_STOP':
+            setIsMoviePlaying(false);
+            setMainViewTrack(null);
+            break;
+          default:
+            break;
         }
       } catch (error) {
         console.error("Failed to parse stream message", error);
       }
     };
 
-    // Note: agoraClient.on('stream-message') may have (uid, streamId, msg) signature
     agoraClient.on('stream-message', handleStreamMessage);
 
     return () => {
       agoraClient.off('stream-message', handleStreamMessage);
     };
-  }, [agoraClient, isHost]);
+  }, [agoraClient, user.uid]);
 
-  // Initialize audio/video tracks when connected
   useEffect(() => {
     if (connectionState === 'CONNECTED' && !tracksInitialized.current) {
       tracksInitialized.current = true;
@@ -356,58 +275,11 @@ const StreamRoomPage = ({ isHost, roomId, token, user, onLeaveRoom, theme, toggl
     }
   }, [connectionState, agoraClient]);
 
-  // Track movie time updates (only relevant if using a local video element)
-  useEffect(() => {
-    const videoElement = movieVideoElementRef.current;
-    if (!videoElement || !isHost) return;
-
-    const handleTimeUpdate = () => {
-      if (!videoElement.duration || videoElement.duration === Infinity) return;
-      const progress = (videoElement.currentTime / videoElement.duration) * 100;
-      setMovieProgress(progress);
-      setMovieTime({ current: videoElement.currentTime, duration: videoElement.duration });
-    };
-
-    const handleDurationChange = () => {
-      setMovieTime({ current: videoElement.currentTime, duration: videoElement.duration || 0 });
-    };
-
-    videoElement.addEventListener('timeupdate', handleTimeUpdate);
-    videoElement.addEventListener('durationchange', handleDurationChange);
-
-    return () => {
-      videoElement.removeEventListener('timeupdate', handleTimeUpdate);
-      videoElement.removeEventListener('durationchange', handleDurationChange);
-    };
-  }, [isHost, isMoviePlaying]);
-
-  // Periodic sync for participants (every 5 seconds) when host
-  useEffect(() => {
-    if (!isHost || !isMoviePlaying || !agoraClient) return;
-
-    const syncInterval = setInterval(async () => {
-      const videoElement = movieVideoElementRef.current;
-      if (!videoElement) return;
-
-      try {
-        const msg = JSON.stringify({
-          type: 'MOVIE_SYNC',
-          currentTime: videoElement.currentTime,
-          duration: videoElement.duration,
-          playbackRate: videoElement.playbackRate,
-          isPaused: videoElement.paused
-        });
-        await sendStreamMessage({ type: 'MOVIE_SYNC', currentTime: videoElement.currentTime, duration: videoElement.duration, playbackRate: videoElement.playbackRate, isPaused: videoElement.paused });
-      } catch (error) {
-        console.error("Error sending sync message:", error);
-      }
-    }, 5000);
-
-    return () => clearInterval(syncInterval);
-  }, [isHost, isMoviePlaying, agoraClient]);
-
   const sendStreamMessage = async (message) => {
-    if (!agoraClient || !dataStreamIdRef.current || agoraClient.connectionState !== 'CONNECTED') return;
+    if (!agoraClient || !dataStreamIdRef.current || connectionState !== 'CONNECTED') {
+      console.error("Cannot send message, data stream is not ready.");
+      return;
+    }
     try {
       const payload = JSON.stringify(message);
       await agoraClient.sendStreamMessage(dataStreamIdRef.current, payload);
@@ -416,12 +288,10 @@ const StreamRoomPage = ({ isHost, roomId, token, user, onLeaveRoom, theme, toggl
     }
   };
 
-  // Start screen share stream. Simplified constraints so browser presents all available choices (screens/windows/tabs)
   const handleStartStream = async () => {
-    if (connectionState !== 'CONNECTED' || !isHost || !agoraClient) return;
+    if (connectionState !== 'CONNECTED' || !isHost || !agoraClient || !dataStreamReady) return;
 
     try {
-      // Standard constraints only. Do not pass non-standard vendor fields.
       const displayMediaOptions = {
         video: {
           width: { ideal: 1920 },
@@ -431,48 +301,38 @@ const StreamRoomPage = ({ isHost, roomId, token, user, onLeaveRoom, theme, toggl
         audio: true
       };
 
-      // prompt browser to select screen/window/tab - browser will show all available choices
       const screenStream = await navigator.mediaDevices.getDisplayMedia(displayMediaOptions);
 
-      // get tracks
       const videoTrack = screenStream.getVideoTracks()[0];
-      const audioTrack = screenStream.getAudioTracks()[0]; // may be undefined on some browsers
+      const audioTrack = screenStream.getAudioTracks()[0];
 
-      // create Agora custom tracks from raw media tracks
       const screenVideoTrack = AgoraRTC.createCustomVideoTrack({ mediaStreamTrack: videoTrack });
       let screenAudioTrack = null;
       if (audioTrack) {
         screenAudioTrack = AgoraRTC.createCustomAudioTrack({ mediaStreamTrack: audioTrack });
       }
 
-      // Unpublish camera track if present (we keep mic published if user wants voice)
       if (localCameraTrackRef.current) {
         try { await agoraClient.unpublish(localCameraTrackRef.current); } catch (e) { /* ignore */ }
       }
 
-      // Publish screen video and optionally screen audio
       const toPublish = [screenVideoTrack];
       if (screenAudioTrack) toPublish.push(screenAudioTrack);
 
       await agoraClient.publish(toPublish);
 
-      // When screen share stops via browser UI
       videoTrack.onended = async () => {
-        // cleanup and revert to camera publish
         await handleStopMovie();
       };
 
       movieTrackRef.current = { video: screenVideoTrack, audio: screenAudioTrack, rawVideoTrack: videoTrack, rawAudioTrack: audioTrack };
       setMainViewTrack(screenVideoTrack);
       setIsMoviePlaying(true);
-      setIsMoviePaused(false);
 
-      // notify participants
-      await sendStreamMessage({ type: 'MOVIE_START' });
+      await sendStreamMessage({ type: 'MOVIE_START', hostUid: user.uid });
     } catch (error) {
       console.error("Error starting screen share:", error);
       setIsMoviePlaying(false);
-      // user denied or other error. Let UI handle alerting.
       if (error.name === 'NotAllowedError' || error.message.includes('Permission denied')) {
         alert("Screen sharing permission denied. Allow screen/window/tab sharing to continue.");
       } else {
@@ -498,61 +358,12 @@ const StreamRoomPage = ({ isHost, roomId, token, user, onLeaveRoom, theme, toggl
     movieTrackRef.current = null;
     setMainViewTrack(null);
     setIsMoviePlaying(false);
-    setIsMoviePaused(true);
-    setMovieProgress(0);
 
-    // Restore camera track publication if present
     if (localCameraTrackRef.current) {
       try { await agoraClient.publish([localCameraTrackRef.current]); } catch (e) { /* ignore */ }
     }
 
     await sendStreamMessage({ type: 'MOVIE_STOP' });
-  };
-
-  const toggleMoviePlayback = async () => {
-    if (!isHost) return;
-
-    // If host is streaming a live screen share then pause/play cannot control remote playback.
-    // We still send play/pause messages so participants with a local mirrored player can act.
-    const videoElement = movieVideoElementRef.current;
-    if (!videoElement) return;
-
-    if (videoElement.paused) {
-      await videoElement.play().catch(()=>{});
-      setIsMoviePaused(false);
-      await sendStreamMessage({ type: 'MOVIE_PLAY' });
-    } else {
-      videoElement.pause();
-      setIsMoviePaused(true);
-      await sendStreamMessage({ type: 'MOVIE_PAUSE' });
-    }
-  };
-
-  const handleSeek = async (e) => {
-    if (!isHost) return;
-
-    const videoElement = movieVideoElementRef.current;
-    if (!videoElement || isNaN(videoElement.duration)) return;
-
-    const newTime = (e.target.value / 100) * videoElement.duration;
-    try { videoElement.currentTime = newTime; } catch(e){}
-    setMovieProgress(e.target.value);
-
-    await sendStreamMessage({
-      type: 'MOVIE_SEEK',
-      time: newTime,
-      duration: videoElement.duration
-    });
-  };
-
-  const handleSpeedChange = async (rate) => {
-    if (!isHost) return;
-    const videoElement = movieVideoElementRef.current;
-    if (videoElement) {
-      try { videoElement.playbackRate = rate; } catch(e){}
-      setPlaybackRate(rate);
-    }
-    await sendStreamMessage({ type: 'MOVIE_SPEED', rate });
   };
 
   const toggleCamera = async () => {
@@ -576,7 +387,6 @@ const StreamRoomPage = ({ isHost, roomId, token, user, onLeaveRoom, theme, toggl
   };
 
   const handleLeave = async () => {
-    // Clean up all tracks
     [localCameraTrackRef.current, localMicrophoneTrackRef.current].forEach(track => {
       if (track) {
         try { track.stop(); track.close(); } catch (e) {}
@@ -595,7 +405,6 @@ const StreamRoomPage = ({ isHost, roomId, token, user, onLeaveRoom, theme, toggl
       }
     } catch (e) { console.warn("leave failed", e); }
 
-    // reset flags to allow re-init if re-entering
     tracksInitialized.current = false;
     dataStreamIdRef.current = null;
 
@@ -615,14 +424,6 @@ const StreamRoomPage = ({ isHost, roomId, token, user, onLeaveRoom, theme, toggl
 
   return (
     <div className="min-h-screen bg-black">
-      {/* Hidden video element retained for local-file playback scenarios.
-          It does not drive screen-sharing. Controls still send sync messages to participants. */}
-      <video
-        ref={movieVideoElementRef}
-        style={{ position: 'absolute', top: '-9999px', left: '-9999px', width: '1px', height: '1px' }}
-        playsInline
-        muted={!isHost}
-      />
       <StreamRoomLayout
         isHost={isHost}
         user={user}
@@ -639,25 +440,16 @@ const StreamRoomPage = ({ isHost, roomId, token, user, onLeaveRoom, theme, toggl
         isConnected={connectionState === 'CONNECTED'}
         handleStartStream={handleStartStream}
         isMoviePlaying={isMoviePlaying}
-        movieProps={{
-          onPlayPause: toggleMoviePlayback,
-          onSeek: handleSeek,
-          onSpeedChange: handleSpeedChange,
-          isPaused: isMoviePaused,
-          progress: movieProgress,
-          currentTime: movieTime.current,
-          duration: movieTime.duration,
-          playbackRate
-        }}
         roomId={roomId}
         handleStopMovie={handleStopMovie}
+        hostUid={hostUid}
+        dataStreamReady={dataStreamReady}
       />
     </div>
   );
 };
 
 const StreamRoomPageWrapper = (props) => {
-  // create single client instance here and pass to provider
   const client = React.useMemo(() => AgoraRTC.createClient({ codec: "vp8", mode: "rtc" }), []);
   return (
     <AgoraRTCProvider client={client}>

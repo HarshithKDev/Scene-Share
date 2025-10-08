@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { auth, updateProfile } from './firebase';
 import { onAuthStateChanged, signOut } from "firebase/auth";
-import { Routes, Route, useNavigate, useParams, Navigate } from 'react-router-dom';
+import { Routes, Route, useNavigate, useParams, Navigate, useLocation } from 'react-router-dom';
 import LoginPage from './pages/LoginPage';
 import LobbyPage from './pages/LobbyPage';
 import StreamRoomPageWrapper from './pages/StreamRoomPage';
@@ -90,8 +90,13 @@ export default function App() {
   const handleCreateRoom = async () => {
     if (!user) return;
     const roomCode = Math.floor(100000 + Math.random() * 900000).toString();
-    const newRoomId = `${roomCode}-host-${user.uid}`;
-    navigate(`/room/${newRoomId}`, { state: { isHost: true } });
+    
+    // Persist host status in sessionStorage
+    const hostedRooms = JSON.parse(sessionStorage.getItem('hosted_rooms') || '{}');
+    hostedRooms[roomCode] = true;
+    sessionStorage.setItem('hosted_rooms', JSON.stringify(hostedRooms));
+
+    navigate(`/room/${roomCode}`, { state: { isHost: true } });
   };
 
   const handleJoinRoom = (id) => {
@@ -114,9 +119,13 @@ export default function App() {
 
   const Room = () => {
     const { roomId } = useParams();
+    const location = useLocation();
     const [agoraToken, setAgoraToken] = useState(null);
     const [loadingToken, setLoadingToken] = useState(true);
-    const isHost = user && roomId.includes(`-host-${user.uid}`);
+
+    // Check sessionStorage to persist host status on refresh
+    const hostedRooms = JSON.parse(sessionStorage.getItem('hosted_rooms') || '{}');
+    const isHost = location.state?.isHost || !!hostedRooms[roomId];
 
     useEffect(() => {
       const getToken = async () => {
