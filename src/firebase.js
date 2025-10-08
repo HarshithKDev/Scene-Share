@@ -7,16 +7,15 @@ import {
   GoogleAuthProvider 
 } from "firebase/auth";
 
-// Your web app's Firebase configuration
-// To get this, go to Project Settings > General in your Firebase console
+// Your web app's Firebase configuration using environment variables
 const firebaseConfig = {
-  apiKey: "AIzaSyDdBCuxp_s4TxKIWyB8AmD2MX4LuUn1uLM",
-  authDomain: "scene-share-e6a6e.firebaseapp.com",
-  projectId: "scene-share-e6a6e",
-  storageBucket: "scene-share-e6a6e.firebasestorage.app",
-  messagingSenderId: "102458846099",
-  appId: "1:102458846099:web:fba1655795ea94e7c41666",
-  measurementId: "G-MBVL8HQ1VQ"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 };
 
 // Initialize Firebase
