@@ -7,7 +7,7 @@ import LobbyPage from './pages/LobbyPage';
 import StreamRoomPageWrapper from './pages/StreamRoomPage';
 import './index.css';
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
+const BACKEND_URL = "";
 
 export default function App() {
   const [theme, setTheme] = useState('dark');
@@ -39,7 +39,7 @@ export default function App() {
     if (!user) return null;
     try {
       const idToken = await user.getIdToken();
-      const response = await fetch(`${BACKEND_URL}/get-agora-token`, {
+      const response = await fetch(`/get-agora-token`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
