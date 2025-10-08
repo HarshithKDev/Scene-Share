@@ -60,13 +60,16 @@ export default function App() {
   };
 
   const handleCreateRoom = async () => {
-    const newRoomId = `room-${Math.random().toString(36).substr(2, 9)}`;
-    // Pass 'isHost: true' in the navigation state
+    if (!user) return; // Ensure user object is available
+    const roomCode = Math.floor(100000 + Math.random() * 900000).toString();
+    // Embed host's UID in the room ID for persistence
+    const newRoomId = `${roomCode}-host-${user.uid}`;
+    // Navigate with state for the initial render
     navigate(`/room/${newRoomId}`, { state: { isHost: true } });
   };
 
   const handleJoinRoom = (id) => {
-    // Pass 'isHost: false' in the navigation state
+    // For joining users, isHost will be determined by the room ID check
     navigate(`/room/${id}`, { state: { isHost: false } });
   };
 
@@ -82,13 +85,11 @@ export default function App() {
   // This is a sub-component that handles the logic for a single room page.
   const Room = () => {
     const { roomId } = useParams();
-    const location = useLocation(); // Get the full location object
     const [agoraToken, setAgoraToken] = useState(null);
     const [loadingToken, setLoadingToken] = useState(true);
 
-    // Safely check for location.state and the isHost property.
-    // This prevents crashes on refresh when state is null.
-    const isHost = location.state?.isHost || false;
+    // Determine host status from the roomId. This persists on refresh.
+    const isHost = user && roomId.includes(`-host-${user.uid}`);
 
     useEffect(() => {
       const getToken = async () => {

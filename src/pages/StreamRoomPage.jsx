@@ -20,7 +20,9 @@ import {
   LogoutIcon,
   PlayIcon,
   PauseIcon,
-  StopIcon
+  StopIcon,
+  CopyIcon,
+  CheckIcon
 } from '../components/Icons';
 
 // --- Movie Controls Component ---
@@ -79,6 +81,16 @@ const StreamRoomLayout = ({
   handleStartStream, isMoviePlaying, movieProps, roomId, handleStopMovie
 }) => {
   const totalParticipants = 1 + remoteUsers.length;
+  const [copied, setCopied] = useState(false);
+
+  const handleCopyRoomId = () => {
+    navigator.clipboard.writeText(roomId).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000); // Reset after 2 seconds
+    });
+  };
+
+  const roomCode = roomId.split('-host-')[0];
 
   return (
     <div className="flex flex-col md:flex-row h-screen">
@@ -121,31 +133,6 @@ const StreamRoomLayout = ({
             return <div className="text-white">Loading movie...</div>;
           }
 
-          if (totalParticipants === 2) {
-            return (
-              <div className="flex flex-col md:flex-row w-full h-full">
-                <div className="w-full h-1/2 md:w-1/2 md:h-full flex items-center justify-center bg-gray-900 relative">
-                  {selfViewTrack && cameraOn ? (
-                    <LocalVideoTrack track={selfViewTrack} play={true} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  ) : (<div className="text-white text-6xl"><VideoCameraSlashIcon /></div>)}
-                  <div className="absolute bottom-2 left-2 p-2"><span className="bg-black/60 text-white text-xs px-2 py-1 rounded">{user.displayName || user.email} (You)</span></div>
-                </div>
-                <div className="w-full h-1/2 md:w-1/2 md:h-full flex items-center justify-center bg-gray-900 relative">
-                  {remoteUsers[0] ? (
-                    <>
-                      <RemoteUser user={remoteUsers[0]} playVideo={true} playAudio={true} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                      <div className="absolute bottom-2 left-2 p-2"><span className="bg-black/60 text-white text-xs px-2 py-1 rounded">{remoteUsers[0].uid}</span></div>
-                    </>
-                  ) : null}
-                </div>
-              </div>
-            );
-          }
-
-          if (totalParticipants > 2) {
-            return <div className="text-white">Gallery view for {totalParticipants} participants would go here.</div>;
-          }
-
           return (
             <div className="text-center text-gray-400 p-4">
               {isHost ? 'Click "Start Stream" to share your screen.' : 'Waiting for the host to start the movie...'}
@@ -160,8 +147,14 @@ const StreamRoomLayout = ({
 
       <aside className="w-full md:max-w-sm bg-gray-900/80 backdrop-blur-lg p-4 flex flex-col space-y-4 overflow-y-auto">
         <div className="text-center">
-          <h2 className="text-white text-xl font-bold">Room ID</h2>
-          <p className="text-gray-400 text-sm break-all">{roomId}</p>
+          <h2 className="text-white text-xl font-bold">Room Code</h2>
+            <div
+                className="text-gray-400 text-lg font-mono tracking-widest flex items-center justify-center gap-2 cursor-pointer hover:text-white p-2 bg-black/20 rounded-lg"
+                onClick={handleCopyRoomId}
+            >
+                <span>{copied ? 'Copied!' : roomCode}</span>
+                {copied ? <CheckIcon /> : <CopyIcon />}
+            </div>
         </div>
         <h3 className="text-white text-lg font-bold flex items-center gap-2 shrink-0"><UsersIcon /> Participants ({totalParticipants})</h3>
 
