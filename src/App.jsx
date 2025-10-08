@@ -33,7 +33,6 @@ export default function App() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       if (currentUser) {
-        // Check if it's a new user without a display name
         const isNew = currentUser.metadata.creationTime === currentUser.metadata.lastSignInTime;
         if ((isNew && !currentUser.displayName) || !currentUser.displayName) {
           setIsNewUser(true);
@@ -48,16 +47,19 @@ export default function App() {
     return () => unsubscribe();
   }, []);
   
-  const handleUpdateUsername = (newUsername) => {
+  const handleUpdateUsername = async (newUsername) => {
     const userToUpdate = auth.currentUser;
     if (userToUpdate && newUsername) {
-      updateProfile(userToUpdate, { displayName: newUsername }).then(() => {
-        setUser({ ...userToUpdate, displayName: newUsername });
+      try {
+        await updateProfile(userToUpdate, { displayName: newUsername });
+        await userToUpdate.reload(); // Force a reload of the user's profile
+        const refreshedUser = auth.currentUser;
+        setUser(refreshedUser); // Set state with the refreshed user
         setShowUsernameModal(false);
         setIsNewUser(false); 
-      }).catch((error) => {
+      } catch (error) {
         console.error("Error updating profile: ", error);
-      });
+      }
     }
   };
 
@@ -135,6 +137,7 @@ export default function App() {
 
     return (
       <StreamRoomPageWrapper
+        key={user.uid} // Add a key to force re-mount on user change
         isHost={isHost}
         roomId={roomId}
         token={agoraToken}

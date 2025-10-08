@@ -66,14 +66,14 @@ app.post('/get-agora-token', verifyFirebaseToken, (req, res) => {
 
   // Build the token
   try {
-    const token = RtcTokenBuilder.buildTokenWithUid(
-      appId,
-      appCertificate,
-      channelName,
-      uid,
-      role,
-      privilegeExpiredTs
-    );
+    const token = RtcTokenBuilder.buildTokenWithUserAccount(
+  appId,
+  appCertificate,
+  channelName,
+  uid, // uid is the user account string from Firebase
+  role,
+  privilegeExpiredTs
+);
 
     console.log(`Token generated for channel: ${channelName}, user: ${uid}`);
     return res.status(200).json({ token: token });
