@@ -80,24 +80,28 @@ const StreamRoomLayout = ({
   handleLeave, theme, toggleTheme, isConnected,
   handleStartStream, isMoviePlaying, movieProps, roomId, handleStopMovie
 }) => {
-  const totalParticipants = 1 + remoteUsers.length;
   const [copied, setCopied] = useState(false);
+  
+  const roomCode = roomId.split('-host-')[0];
+  const hostUid = isHost ? user.uid : roomId.split('-host-')[1];
+  
+  const hostUser = remoteUsers.find(u => u.uid.toString() === hostUid.toString());
+  const participantUsers = remoteUsers.filter(u => u.uid.toString() !== hostUid.toString());
+  const totalParticipants = 1 + remoteUsers.length;
 
   const handleCopyRoomId = () => {
-    navigator.clipboard.writeText(roomId).then(() => {
+    navigator.clipboard.writeText(roomCode).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000); // Reset after 2 seconds
     });
   };
-
-  const roomCode = roomId.split('-host-')[0];
 
   return (
     <div className="flex flex-col md:flex-row h-screen">
       <main className="flex-1 bg-black flex items-center justify-center relative">
         {(() => {
           if (isMoviePlaying) {
-            if (mainViewTrack) {
+            if (isHost && mainViewTrack) {
               return (
                 <div className="relative w-full h-full">
                   <LocalVideoTrack
@@ -108,9 +112,7 @@ const StreamRoomLayout = ({
                 </div>
               );
             }
-            if (!isHost) {
-              const hostUser = remoteUsers.find(u => u.uid.toString() === roomId.split('-host-')[1]);
-              if (hostUser && hostUser.videoTrack) {
+            if (!isHost && hostUser && hostUser.videoTrack) {
                 return (
                   <div className="relative w-full h-full">
                     <RemoteUser
@@ -121,16 +123,13 @@ const StreamRoomLayout = ({
                     />
                   </div>
                 );
-              } else {
-                return (
-                  <div className="text-white text-center">
+            }
+            return (
+                <div className="text-white text-center">
                     <div className="text-lg mb-2">Waiting for host's movie stream...</div>
                     <div className="text-sm text-gray-400">Remote users: {remoteUsers.length}</div>
-                  </div>
-                );
-              }
-            }
-            return <div className="text-white">Loading movie...</div>;
+                </div>
+            );
           }
 
           return (
@@ -171,7 +170,7 @@ const StreamRoomLayout = ({
           </div>
         </div>
 
-        {remoteUsers.map(remoteUser => (
+        {participantUsers.map(remoteUser => (
           <div key={remoteUser.uid} className="relative rounded-lg overflow-hidden shrink-0">
             <RemoteUser user={remoteUser} playVideo={true} playAudio={false} style={{ width: '100%', aspectRatio: '16/9', objectFit: 'cover' }} />
             <div className="absolute top-0 left-0 p-2"><span className="bg-black/60 text-white text-xs px-2 py-1 rounded">{remoteUser.uid}</span></div>
@@ -235,36 +234,6 @@ const StreamRoomPage = ({ isHost, roomId, token, user, onLeaveRoom, theme, toggl
       try { track.play(); } catch (e) { /* ignore play errors */ }
     });
   }, [audioTracks]);
-
-  // Subscribe host's published video for non-host participants
-  useEffect(() => {
-    if (isHost || !agoraClient) return;
-
-    const handleUserPublished = async (user, mediaType) => {
-      try {
-        await agoraClient.subscribe(user, mediaType);
-        if (mediaType === "video" && user.uid === hostUid) {
-          setMainViewTrack(user.videoTrack);
-        }
-      } catch (err) {
-        console.warn("subscribe failed", err);
-      }
-    };
-
-    const handleUserUnpublished = (user, mediaType) => {
-      if (mediaType === "video" && user.uid === hostUid) {
-        setMainViewTrack(null);
-      }
-    };
-
-    agoraClient.on("user-published", handleUserPublished);
-    agoraClient.on("user-unpublished", handleUserUnpublished);
-
-    return () => {
-      agoraClient.off("user-published", handleUserPublished);
-      agoraClient.off("user-unpublished", handleUserUnpublished);
-    };
-  }, [agoraClient, isHost, hostUid]);
 
   // Data stream creation after join
   useEffect(() => {
