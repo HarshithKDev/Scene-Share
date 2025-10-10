@@ -56,11 +56,8 @@ const StreamRoomLayout = ({
   // Handle screen share playback for HOST
   useEffect(() => {
     if (isHost && isMoviePlaying && screenVideoTrack && mainVideoContainerRef.current) {
-      console.log('🎯 HOST: Playing screen share in main window');
-      
       try {
         screenVideoTrack.play(mainVideoContainerRef.current);
-        console.log('✅ Host screen share playing successfully');
         setScreenShareError(null);
       } catch (error) {
         console.error('❌ Host screen share playback error:', error);
@@ -78,33 +75,19 @@ const StreamRoomLayout = ({
   // Handle remote screen share playback for PARTICIPANTS
   useEffect(() => {
     if (!isHost && isMoviePlaying && hostScreenUser && hostScreenUser.videoTrack && mainVideoContainerRef.current) {
-      console.log('🎯 PARTICIPANT: Setting up remote screen share playback for UID:', hostScreenUser.uid);
-      
       const playScreenShare = async () => {
         try {
-          console.log('🎬 Attempting to play screen share video track...');
-          
           setScreenShareError(null);
-          
-          // Stop any existing playback first
           hostScreenUser.videoTrack.stop();
-          
-          // Play the screen share video track in the main container
           await hostScreenUser.videoTrack.play(mainVideoContainerRef.current);
-          
-          console.log('✅ Screen share video track playing successfully for participant');
-          
-          // Handle track ending
           hostScreenUser.videoTrack.on('track-ended', () => {
             console.log('📺 Screen share track ended');
           });
-          
         } catch (error) {
           console.error('❌ Screen share playback failed:', error);
           setScreenShareError('Failed to play screen share. Please try refreshing.');
         }
       };
-      
       playScreenShare();
     }
   }, [isHost, isMoviePlaying, hostScreenUser, setScreenShareError]);
@@ -121,39 +104,20 @@ const StreamRoomLayout = ({
     }
   }, [isHost, selfViewTrack, isMoviePlaying, setScreenShareError]);
 
-  // Main view shows screen share content or waiting state
   const renderMainView = () => {
     // For PARTICIPANTS
     if (!isHost) {
       if (isMoviePlaying && hostScreenUser) {
         return (
           <div className="relative w-full h-full bg-black">
-            {/* Main video container for screen share */}
             <div 
               className="w-full h-full" 
               ref={mainVideoContainerRef}
               style={{ backgroundColor: 'black' }}
             />
-            
             <div className="absolute top-4 left-4 bg-green-600 text-white px-3 py-1 rounded text-sm font-semibold">
               📺 Live Screen Share
             </div>
-            
-            <div className="absolute top-4 right-4 bg-black/70 text-white px-2 py-1 rounded text-xs">
-              {hostScreenUser.videoTrack ? 'Video: Active' : 'Video: Loading...'}
-            </div>
-            
-            {screenShareError && (
-              <div className="absolute bottom-4 left-4 right-4 bg-red-600 text-white p-3 rounded text-center">
-                {screenShareError}
-                <button 
-                  onClick={() => window.location.reload()}
-                  className="ml-2 bg-white text-red-600 px-2 py-1 rounded text-sm"
-                >
-                  Refresh
-                </button>
-              </div>
-            )}
           </div>
         );
       } else if (isMoviePlaying && !hostScreenUser) {
@@ -161,33 +125,7 @@ const StreamRoomLayout = ({
           <div className="w-full h-full flex items-center justify-center bg-gray-900">
             <div className="text-white text-center">
               <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-white mx-auto mb-4"></div>
-              <div className="text-xl font-semibold mb-2">Connecting to Screen Share...</div>
-              <div className="text-gray-400 mb-4">Host is sharing their screen</div>
-              
-              {/* MANUAL REFRESH BUTTON */}
-              <button 
-                onClick={() => {
-                  console.log('🔄 Manual refresh triggered by participant');
-                  // Force re-check for screen share user
-                  const screenUser = remoteUsers.find(user => 
-                    user.uid.toString().endsWith('-screen') && user.videoTrack
-                  );
-                  if (screenUser) {
-                    console.log('✅ Found screen user on manual refresh:', screenUser.uid);
-                    setScreenShareError(null);
-                  } else {
-                    console.log('❌ No screen user found on manual refresh');
-                    setScreenShareError('No screen share detected. Ask host to restart screen share.');
-                  }
-                }}
-                className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition-colors"
-              >
-                Refresh Connection
-              </button>
-              
-              <div className="text-sm text-gray-500 mt-4">
-                Detected {remoteUsers.length} user{remoteUsers.length !== 1 ? 's' : ''} in room
-              </div>
+              <p className="text-xl font-semibold">Connecting to Screen Share...</p>
             </div>
           </div>
         );
@@ -196,11 +134,7 @@ const StreamRoomLayout = ({
           <div className="w-full h-full flex items-center justify-center bg-gray-900">
             <div className="text-center text-gray-400">
               <UsersIcon className="w-16 h-16 mx-auto mb-4" />
-              <div className="text-xl font-semibold mb-2">Waiting for Host</div>
-              <div>The host will start the stream soon</div>
-              <div className="text-sm text-gray-500 mt-2">
-                {remoteUsers.length > 0 ? `${remoteUsers.length} users in room` : 'Connecting...'}
-              </div>
+              <p className="text-xl font-semibold">Waiting for Host</p>
             </div>
           </div>
         );
@@ -208,55 +142,37 @@ const StreamRoomLayout = ({
     }
 
     // For HOST
-    return (
-      <div className="relative w-full h-full bg-black">
-        {isMoviePlaying ? (
-          <div className="w-full h-full" ref={mainVideoContainerRef}>
-            {!screenVideoTrack && (
-              <div className="w-full h-full flex items-center justify-center bg-gray-900">
-                <div className="text-white text-center">
-                  <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-white mx-auto mb-4"></div>
-                  <div className="text-xl font-semibold mb-2">Starting Screen Share...</div>
-                  <div className="text-gray-400">Your screen will appear here momentarily</div>
-                </div>
+    if (isMoviePlaying) {
+      if (screenVideoTrack) {
+        // Active screen share
+        return <div className="w-full h-full bg-black" ref={mainVideoContainerRef} />;
+      } else {
+        // Post-refresh state
+        return (
+          <div className="w-full h-full flex items-center justify-center bg-gray-900">
+            <div className="text-center text-gray-400 p-4">
+              <VideoCameraIcon className="w-16 h-16 mx-auto mb-4 text-blue-500" />
+              <div className="text-xl font-semibold mb-2 text-white">Your stream was interrupted.</div>
+              <p>Click "Resume Screen Share" below to continue.</p>
+            </div>
+          </div>
+        );
+      }
+    } else {
+      // Not screen sharing
+      return (
+        <div className="w-full h-full" ref={mainVideoContainerRef}>
+          {!cameraOn && (
+            <div className="w-full h-full flex items-center justify-center bg-gray-900">
+              <div className="text-center text-gray-400">
+                <VideoCameraSlashIcon className="w-16 h-16 mx-auto mb-4" />
+                <div className="text-xl font-semibold">Camera Off</div>
               </div>
-            )}
-          </div>
-        ) : (
-          <div className="w-full h-full" ref={mainVideoContainerRef}>
-            {!cameraOn && (
-              <div className="w-full h-full flex items-center justify-center bg-gray-900">
-                <div className="text-center text-gray-400">
-                  <VideoCameraSlashIcon className="w-16 h-16 mx-auto mb-4" />
-                  <div className="text-xl font-semibold mb-2">Camera Off</div>
-                  <div>Click "Start Stream" to share your screen</div>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {connectionError && (
-          <div className="absolute top-4 left-4 right-4 bg-red-600 text-white p-4 rounded-lg shadow-lg z-20">
-            <div className="font-bold">Connection Error</div>
-            <div className="text-sm">{connectionError}</div>
-            <button 
-              onClick={handleLeave}
-              className="mt-2 bg-white text-red-600 py-1 px-3 rounded text-sm font-semibold hover:bg-gray-100"
-            >
-              Leave Room
-            </button>
-          </div>
-        )}
-
-        {screenShareError && isHost && (
-          <div className="absolute top-4 left-4 right-4 bg-red-600 text-white p-4 rounded-lg shadow-lg z-20">
-            <div className="font-bold">Screen Share Error</div>
-            <div className="text-sm">{screenShareError}</div>
-          </div>
-        )}
-      </div>
-    );
+            </div>
+          )}
+        </div>
+      );
+    }
   };
 
   return (
@@ -320,8 +236,6 @@ const StreamRoomLayout = ({
           const isScreenClient = remoteUser.uid.toString().endsWith('-screen');
           if (isScreenClient) return null;
           
-          const isCameraClientOfHost = remoteUser.uid.toString() === (hostCameraUser?.uid || '').toString();
-          
           return (
             <div key={remoteUser.uid} className="relative rounded-lg overflow-hidden shrink-0 border border-gray-600">
               <RemoteUser 
@@ -330,12 +244,6 @@ const StreamRoomLayout = ({
                 playAudio={true}
                 style={{ width: '100%', aspectRatio: '16/9', objectFit: 'cover' }} 
               />
-              <div className="absolute top-0 left-0 p-2 flex items-center gap-1">
-                <span className="bg-black/60 text-white text-xs px-2 py-1 rounded">
-                  User {remoteUser.uid}
-                </span>
-                {isCameraClientOfHost && <span className="bg-blue-600 text-white text-xs px-2 py-1 rounded font-semibold">HOST</span>}
-              </div>
             </div>
           );
         })}
@@ -346,16 +254,7 @@ const StreamRoomLayout = ({
         <div className="mt-auto shrink-0 space-y-4">
           {isHost && (
             <div className="space-y-2">
-              {!isMoviePlaying ? (
-                <button 
-                  onClick={handleStartStream} 
-                  className={`w-full flex items-center justify-center gap-3 text-white py-3 px-6 rounded-xl font-semibold transition-all ${isConnected && dataStreamReady ? 'bg-blue-600 hover:bg-blue-700 cursor-pointer shadow-lg' : 'bg-gray-600 cursor-not-allowed'}`} 
-                  disabled={!isConnected || !dataStreamReady}
-                >
-                  <VideoCameraIcon className="w-5 h-5" /> 
-                  Start Screen Share
-                </button>
-              ) : (
+              {isMoviePlaying && screenVideoTrack ? (
                 <button 
                   onClick={handleStopMovie} 
                   className={`w-full flex items-center justify-center gap-3 text-white py-3 px-6 rounded-xl font-semibold transition-all ${isConnected ? 'bg-yellow-600 hover:bg-yellow-700 shadow-lg' : 'bg-gray-600'}`} 
@@ -363,6 +262,15 @@ const StreamRoomLayout = ({
                 >
                   <StopIcon className="w-5 h-5" /> 
                   Stop Screen Share
+                </button>
+              ) : (
+                <button 
+                  onClick={handleStartStream} 
+                  className={`w-full flex items-center justify-center gap-3 text-white py-3 px-6 rounded-xl font-semibold transition-all ${isConnected && dataStreamReady ? 'bg-blue-600 hover:bg-blue-700 cursor-pointer shadow-lg' : 'bg-gray-600 cursor-not-allowed'}`} 
+                  disabled={!isConnected || !dataStreamReady}
+                >
+                  <VideoCameraIcon className="w-5 h-5" /> 
+                  {isMoviePlaying ? 'Resume Screen Share' : 'Start Screen Share'}
                 </button>
               )}
             </div>

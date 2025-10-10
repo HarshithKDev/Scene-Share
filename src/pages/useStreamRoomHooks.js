@@ -10,9 +10,18 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, fetchAg
   const remoteUsers = useRemoteUsers();
   const { audioTracks } = useRemoteAudioTracks(remoteUsers);
 
-  const [micOn, setMicOn] = useState(false);
-  const [cameraOn, setCameraOn] = useState(false);
-  const [isMoviePlaying, setIsMoviePlaying] = useState(false);
+  // Initialize state from sessionStorage or default to true
+  const [micOn, setMicOn] = useState(() => {
+    const savedMicState = sessionStorage.getItem('micOn');
+    return savedMicState !== null ? JSON.parse(savedMicState) : true;
+  });
+  const [cameraOn, setCameraOn] = useState(() => {
+      const savedCameraState = sessionStorage.getItem('cameraOn');
+      return savedCameraState !== null ? JSON.parse(savedCameraState) : true;
+  });
+  const [isMoviePlaying, setIsMoviePlaying] = useState(() => {
+    return isHost ? JSON.parse(sessionStorage.getItem('isMoviePlaying') || 'false') : false;
+  });
   const [selfViewTrack, setSelfViewTrack] = useState(null);
   const [dataStreamReady, setDataStreamReady] = useState(false);
   const [isStartingStream, setIsStartingStream] = useState(false);
@@ -34,6 +43,21 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, fetchAg
     isInitializing: false,
     screenClientJoined: false
   });
+
+  // Save state to sessionStorage whenever it changes
+  useEffect(() => {
+    sessionStorage.setItem('micOn', JSON.stringify(micOn));
+  }, [micOn]);
+
+  useEffect(() => {
+      sessionStorage.setItem('cameraOn', JSON.stringify(cameraOn));
+  }, [cameraOn]);
+
+  useEffect(() => {
+    if (isHost) {
+        sessionStorage.setItem('isMoviePlaying', JSON.stringify(isMoviePlaying));
+    }
+  }, [isMoviePlaying, isHost]);
 
   const validateToken = useCallback((token, appId, channelName, uid) => {
     if (!token) {
@@ -321,7 +345,11 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, fetchAg
   }, []);
 
   const handleStartStream = useCallback(async () => {
-    if (!isHost || isMoviePlaying || isStartingStream || !screenClient) return;
+    // UPDATED GUARD: Allows starting if isMoviePlaying is true but there's no active screen track.
+    if (!isHost || (isMoviePlaying && screenVideoTrackRef.current) || isStartingStream || !screenClient) {
+      console.log('handleStartStream returned early due to guard condition.');
+      return;
+    }
 
     setIsStartingStream(true);
     console.log('🔄 Starting screen share with dual-client approach...');
@@ -350,7 +378,6 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, fetchAg
 
       console.log('🎯 Screen track created, joining screen client to channel...');
       
-      // CRITICAL FIX: Ensure screen client has event listeners
       screenClient.on('user-published', async (screenUser, mediaType) => {
         console.log('📡 Screen client user published:', screenUser.uid, mediaType);
       });
@@ -388,7 +415,6 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, fetchAg
       console.log('📢 Notifying participants about screen share start');
       console.log('🎯 Sending MOVIE_START message with screen UID:', screenUid);
       
-      // CRITICAL: Wait a moment for the screen client to be fully established
       await new Promise(resolve => setTimeout(resolve, 1000));
       
       await sendStreamMessage({ 
@@ -461,14 +487,12 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, fetchAg
           setIsMoviePlaying(true);
           setScreenShareError(null);
           
-          // Look for the screen user in current remote users
           const screenUser = remoteUsers.find(u => u.uid.toString() === message.screenUid.toString());
           if (screenUser) {
             console.log('✅ Found screen user immediately:', screenUser.uid);
             setHostScreenUser(screenUser);
           } else {
             console.log('⏳ Screen user not found yet, will auto-detect when published');
-            // Set a timeout to check again in case the user joins later
             setTimeout(() => {
               const delayedScreenUser = remoteUsers.find(u => u.uid.toString() === message.screenUid.toString());
               if (delayedScreenUser) {
@@ -539,13 +563,14 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, fetchAg
           { encoderConfig: "480p_1", optimizationMode: "motion" }
         );
         
+        await micTrack.setEnabled(micOn);
+        await camTrack.setEnabled(cameraOn);
+
         localMicrophoneTrackRef.current = micTrack;
         localCameraTrackRef.current = camTrack;
         setSelfViewTrack(camTrack);
         
         await agoraClient.publish([micTrack, camTrack]);
-        setMicOn(true);
-        setCameraOn(true);
         
         setDataStreamReady(true);
         initializationRef.current.hasJoined = true;
@@ -576,7 +601,7 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, fetchAg
         agoraClient.off('connection-state-change');
       }
     };
-  }, [agoraClient, appId, roomId, token, user.uid, handleUserPublished, handleUserUnpublished, handleUserJoined, handleUserLeft, handleTokenPrivilegeWillExpire, handleTokenPrivilegeDidExpire, onTokenError, validateToken]);
+  }, [agoraClient, appId, roomId, token, user.uid, handleUserPublished, handleUserUnpublished, handleUserJoined, handleUserLeft, handleTokenPrivilegeWillExpire, handleTokenPrivilegeDidExpire, onTokenError, validateToken, micOn, cameraOn]);
 
   // Create data stream when connected
   useEffect(() => {
@@ -609,21 +634,22 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, fetchAg
   }, [audioTracks, remoteUsers]);
 
   const toggleCamera = useCallback(async () => {
-    if (!localCameraTrackRef.current) return;
-    const newState = !cameraOn;
-    await localCameraTrackRef.current.setEnabled(newState);
-    setCameraOn(newState);
+    if (localCameraTrackRef.current) {
+      const newState = !cameraOn;
+      await localCameraTrackRef.current.setEnabled(newState);
+      setCameraOn(newState);
+    }
   }, [cameraOn]);
 
   const toggleMic = useCallback(async () => {
-    if (!localMicrophoneTrackRef.current) return;
-    const newState = !micOn;
-    await localMicrophoneTrackRef.current.setEnabled(newState);
-    setMicOn(newState);
+    if (localMicrophoneTrackRef.current) {
+      const newState = !micOn;
+      await localMicrophoneTrackRef.current.setEnabled(newState);
+      setMicOn(newState);
+    }
   }, [micOn]);
 
   return {
-    // State
     micOn,
     cameraOn,
     isMoviePlaying,
@@ -638,12 +664,8 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, fetchAg
     remoteUsers,
     screenShareError,
     setScreenShareError,
-    
-    // Refs
     localMicrophoneTrackRef,
     localCameraTrackRef,
-    
-    // Methods
     toggleCamera,
     toggleMic,
     handleStartStream,
