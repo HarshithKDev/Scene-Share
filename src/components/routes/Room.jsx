@@ -5,7 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import { fetchAgoraToken } from '../../services/agoraApi';
 import { AgoraRTCProvider } from "agora-rtc-react";
 import AgoraRTC from "agora-rtc-sdk-ng";
-import { Button } from '../ui/Button'; // Import Button for the UI
+import { Button } from '../ui/Button';
 
 const StreamRoomPage = lazy(() => import('../../pages/StreamRoomPage'));
 
@@ -21,6 +21,7 @@ const Room = () => {
 
     const isHost = state?.isHost || false;
 
+    // --- FIX: Create and manage the client instance here ---
     const agoraClient = useMemo(() => 
         AgoraRTC.createClient({ codec: "vp8", mode: "rtc" }),
         []
@@ -35,7 +36,6 @@ const Room = () => {
                 setAgoraToken(token);
             } catch (err) {
                 console.error('Token fetch error:', err);
-                // --- NEW: Specific error handling ---
                 if (err.message.includes('404')) {
                     setError(`Room not found. Please check the ID and try again.`);
                 } else {
@@ -76,6 +76,7 @@ const Room = () => {
         );
     }
     
+    // The provider now gets the client we created
     return agoraToken ? (
         <AgoraRTCProvider client={agoraClient}>
             <StreamRoomPage
@@ -85,6 +86,7 @@ const Room = () => {
                 token={agoraToken}
                 onLeaveRoom={handleLeaveRoom}
                 appId={import.meta.env.VITE_AGORA_APP_ID}
+                client={agoraClient} // Pass the client down as a prop
             />
         </AgoraRTCProvider>
     ) : null;

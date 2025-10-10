@@ -1,13 +1,14 @@
 // src/pages/useStreamRoomHooks.js
 import { useState, useEffect, useRef, useCallback } from 'react';
 import AgoraRTC from "agora-rtc-sdk-ng";
-import { useRTCClient, useRemoteUsers, useRemoteAudioTracks, useConnectionState } from "agora-rtc-react";
-import { sendHeartbeat } from '../services/agoraApi'; // --- IMPORT HEARTBEAT ---
+import { useRemoteUsers, useRemoteAudioTracks, useConnectionState } from "agora-rtc-react";
+import { sendHeartbeat } from '../services/agoraApi';
 
-export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, fetchAgoraToken, onTokenError }) => {
-  const agoraClient = useRTCClient();
+// --- FIX: Accept the manually created client as a prop ---
+export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, client: agoraClient, fetchAgoraToken, onTokenError }) => {
   const [screenClient, setScreenClient] = useState(null);
   
+  // These hooks can still be used as they read from the provider, which now gets the correct client
   const connectionState = useConnectionState();
   const remoteUsers = useRemoteUsers();
   const { audioTracks } = useRemoteAudioTracks(remoteUsers);
@@ -47,19 +48,13 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, fetchAg
     screenClientJoined: false
   });
 
-  // --- NEW: HEARTBEAT EFFECT FOR HOST ---
   useEffect(() => {
     if (isHost && connectionState === 'CONNECTED') {
-      // Send initial heartbeat
       sendHeartbeat(roomId, () => user.getIdToken());
-
-      // Set up interval to send heartbeat every 5 minutes
       const intervalId = setInterval(() => {
         console.log('💓 Sending host heartbeat...');
         sendHeartbeat(roomId, () => user.getIdToken());
-      }, 5 * 60 * 1000); // 5 minutes
-
-      // Clean up interval on component unmount
+      }, 5 * 60 * 1000);
       return () => clearInterval(intervalId);
     }
   }, [isHost, connectionState, roomId, user]);
@@ -77,35 +72,7 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, fetchAg
         sessionStorage.setItem('isMoviePlaying', JSON.stringify(isMoviePlaying));
     }
   }, [isMoviePlaying, isHost]);
-
-  useEffect(() => {
-    if (!agoraClient) return;
-
-    agoraClient.enableAudioVolumeIndication();
-
-    const handleVolumeIndicator = (volumes) => {
-      let maxVolume = 0;
-      let speakerUid = null;
-
-      volumes.forEach((volume) => {
-        if (volume.level > maxVolume && volume.level > 5) {
-          maxVolume = volume.level;
-          speakerUid = volume.uid === 0 ? user.uid : volume.uid;
-        }
-      });
-      
-      setActiveSpeakerUid(speakerUid);
-    };
-
-    agoraClient.on("volume-indicator", handleVolumeIndicator);
-
-    return () => {
-      agoraClient.off("volume-indicator", handleVolumeIndicator);
-    };
-  }, [agoraClient, user.uid]);
-
-  // ... (rest of the file remains the same)
-  // ...
+  
   const validateToken = useCallback((token, appId, channelName, uid) => {
     if (!token) {
       console.error('❌ Token is null or undefined');
@@ -131,27 +98,6 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, fetchAg
     }
   }, [isHost, screenClient]);
 
-  useEffect(() => {
-    console.log('🔍 REAL-TIME DEBUG - Room State:', {
-      isHost,
-      isMoviePlaying,
-      connectionState,
-      activeSpeakerUid,
-      remoteUsers: remoteUsers.map(u => ({
-        uid: u.uid,
-        isScreen: u.uid.toString().endsWith('-screen'),
-        hasVideo: !!u.videoTrack,
-        hasAudio: !!u.audioTrack
-      })),
-      hostScreenUser: hostScreenUser ? {
-        uid: hostScreenUser.uid,
-        hasVideo: !!hostScreenUser.videoTrack,
-        hasAudio: !!hostScreenUser.audioTrack
-      } : null,
-      screenVideoTrack: !!screenVideoTrack
-    });
-  }, [isHost, isMoviePlaying, connectionState, remoteUsers, hostScreenUser, screenVideoTrack, activeSpeakerUid]);
-
   const handleUserPublished = useCallback(async (user, mediaType) => {
     console.log('📡 User published:', user.uid, mediaType, 'isScreen:', user.uid.toString().endsWith('-screen'));
     
@@ -168,12 +114,6 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, fetchAg
         setScreenShareError(null);
         
         if (mediaType === 'video' && user.videoTrack) {
-          console.log('🎬 Screen share video track available for playback');
-          
-          user.videoTrack.on('first-frame-decoded', () => {
-            console.log('📺 First frame of screen share decoded!');
-          });
-
           user.videoTrack.on('track-ended', () => {
             console.log('📺 Screen share track ended');
             setIsMoviePlaying(false);
@@ -204,10 +144,6 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, fetchAg
     }
   }, []);
 
-  const handleUserJoined = useCallback((user) => {
-    console.log('👤 User joined:', user.uid);
-  }, []);
-
   const handleUserLeft = useCallback((user) => {
     console.log('👤 User left:', user.uid);
     
@@ -226,10 +162,9 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, fetchAg
 
   useEffect(() => {
     if (!isHost && !hostScreenUser) {
-      const screenUser = remoteUsers.find(user => {
-        const isScreen = user.uid.toString().endsWith('-screen');
-        if (isScreen && user.videoTrack) {
-          console.log('🎯 AUTO-DETECTED SCREEN SHARE USER WITH VIDEO TRACK:', user.uid);
+      const screenUser = remoteUsers.find(u => {
+        const isScreen = u.uid.toString().endsWith('-screen');
+        if (isScreen && u.videoTrack) {
           return true;
         }
         return false;
@@ -278,7 +213,7 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, fetchAg
   }, [agoraClient, roomId, user.uid, fetchAgoraToken]);
 
   const sendStreamMessage = useCallback(async (message) => {
-    if (!agoraClient || connectionState !== 'CONNECTED') {
+    if (!agoraClient || agoraClient.connectionState !== 'CONNECTED') {
       console.warn("Agora client not connected");
       return;
     }
@@ -292,7 +227,6 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, fetchAg
             ordered: true 
           });
           dataStreamRef.current = streamId;
-          console.log('✅ Data stream created for messaging');
         } catch (error) {
           console.warn("Could not create data stream:", error);
         }
@@ -302,34 +236,30 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, fetchAg
         const payload = JSON.stringify(message);
         const encoder = new TextEncoder();
         await agoraClient.sendStreamMessage(streamId, encoder.encode(payload));
-        console.log('📢 Stream message sent:', message.type);
       }
     } catch (error) {
       console.error("Failed to send stream message:", error);
     }
-  }, [agoraClient, connectionState]);
+  }, [agoraClient]);
 
   const handleStopMovie = useCallback(async () => {
     if (!isHost || !screenClient) return;
 
     try {
-      console.log('🛑 Stopping screen share...');
-
       if (screenVideoTrackRef.current) {
         screenVideoTrackRef.current.stop();
         screenVideoTrackRef.current.close();
-        screenVideoTrackRef.current = null;
       }
-
       if (screenAudioTrackRef.current) {
         screenAudioTrackRef.current.stop();
         screenAudioTrackRef.current.close();
-        screenAudioTrackRef.current = null;
       }
+      
+      screenVideoTrackRef.current = null;
+      screenAudioTrackRef.current = null;
       
       if (screenClient.connectionState === 'CONNECTED') {
         await screenClient.leave();
-        console.log('✅ Screen client left channel');
       }
 
       setScreenVideoTrack(null);
@@ -338,127 +268,59 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, fetchAg
       setScreenShareError(null);
       initializationRef.current.screenClientJoined = false;
       
-      console.log('📢 Notifying participants about screen share stop');
-      try {
-        await sendStreamMessage({ type: 'MOVIE_STOP' });
-      } catch (msgError) {
-        console.warn("Could not send stream message, but screen share stopped", msgError);
-      }
-      
-      console.log('🎯 Screen sharing stopped successfully');
+      await sendStreamMessage({ type: 'MOVIE_STOP' });
       
     } catch (error) {
       console.error("Error stopping movie:", error);
-      screenVideoTrackRef.current = null;
-      screenAudioTrackRef.current = null;
-      setScreenVideoTrack(null);
-      setIsMoviePlaying(false);
-      setHostScreenUser(null);
-      setScreenShareError(null);
     }
   }, [isHost, screenClient, sendStreamMessage]);
 
   const createScreenTrack = useCallback(async () => {
-    console.log('Creating screen track with dual-client approach');
-
     try {
       try {
-        const screenTrack = await AgoraRTC.createScreenVideoTrack({
+        return await AgoraRTC.createScreenVideoTrack({
           encoderConfig: "1080p_1",
           optimizationMode: "detail",
           withAudio: true,
         }, "enable");
-
-        console.log('Screen track with audio created successfully');
-        return screenTrack;
       } catch (audioError) {
-        console.log('System audio not available, creating screen track without audio:', audioError);
-        
-        const screenTrack = await AgoraRTC.createScreenVideoTrack({
+        return await AgoraRTC.createScreenVideoTrack({
           encoderConfig: "1080p_1",
           optimizationMode: "detail",
         }, "disable");
-        
-        return screenTrack;
       }
     } catch (error) {
-      console.log('All screen track methods failed, trying basic configuration:', error);
-      const screenTrack = await AgoraRTC.createScreenVideoTrack({}, "disable");
-      return screenTrack;
+      return await AgoraRTC.createScreenVideoTrack({}, "disable");
     }
   }, []);
 
   const handleStartStream = useCallback(async () => {
-    if (!isHost || (isMoviePlaying && screenVideoTrackRef.current) || isStartingStream || !screenClient) {
-      console.log('handleStartStream returned early due to guard condition.');
-      return;
-    }
+    if (!isHost || isStartingStream || !screenClient) return;
 
     setIsStartingStream(true);
-    console.log('🔄 Starting screen share with dual-client approach...');
-
     const screenUid = `${user.uid}-screen`;
-    console.log('🎯 Screen share UID will be:', screenUid);
 
     try {
-      console.log(`🔑 Requesting screen token for UID: ${screenUid}`);
       const screenToken = await fetchAgoraToken(roomId, screenUid);
-      
-      if (!screenToken) {
-        throw new Error('No token received for screen client');
-      }
+      if (!screenToken) throw new Error('No token for screen client');
 
-      console.log('✅ Screen token received, creating screen track...');
       const screenTrack = await createScreenTrack();
-
-      let videoTrack, audioTrack;
-      
-      if (Array.isArray(screenTrack)) {
-        [videoTrack, audioTrack] = screenTrack;
-      } else {
-        videoTrack = screenTrack;
-      }
-
-      console.log('🎯 Screen track created, joining screen client to channel...');
-      
-      screenClient.on('user-published', async (screenUser, mediaType) => {
-        console.log('📡 Screen client user published:', screenUser.uid, mediaType);
-      });
-
-      screenClient.on('user-joined', (screenUser) => {
-        console.log('👤 Screen client user joined:', screenUser.uid);
-      });
+      const [videoTrack, audioTrack] = Array.isArray(screenTrack) ? screenTrack : [screenTrack];
 
       await screenClient.join(appId, roomId, screenToken, screenUid);
-      console.log('✅ Screen client joined channel successfully with UID:', screenUid);
       
       const tracksToPublish = [videoTrack];
-      if (audioTrack) {
-        tracksToPublish.push(audioTrack);
-      }
+      if (audioTrack) tracksToPublish.push(audioTrack);
 
-      console.log('🎯 Publishing screen tracks...');
       await screenClient.publish(tracksToPublish);
-      console.log('✅ Screen tracks published successfully');
 
       screenVideoTrackRef.current = videoTrack;
-      setScreenVideoTrack(videoTrack);
-      if (audioTrack) {
-        screenAudioTrackRef.current = audioTrack;
-      }
+      if (audioTrack) screenAudioTrackRef.current = audioTrack;
 
-      videoTrack.on("track-ended", () => {
-        console.log("Screen share ended by user");
-        handleStopMovie();
-      });
+      videoTrack.on("track-ended", handleStopMovie);
 
       setIsMoviePlaying(true);
       initializationRef.current.screenClientJoined = true;
-      
-      console.log('📢 Notifying participants about screen share start');
-      console.log('🎯 Sending MOVIE_START message with screen UID:', screenUid);
-      
-      await new Promise(resolve => setTimeout(resolve, 1000));
       
       await sendStreamMessage({ 
         type: 'MOVIE_START',
@@ -467,141 +329,71 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, fetchAg
         timestamp: Date.now()
       });
       
-      console.log('🎉 Screen sharing started successfully! Participants notified.');
-      
     } catch (error) {
       console.error("❌ Error starting screen share:", error);
       setIsMoviePlaying(false);
       setScreenVideoTrack(null);
       setScreenShareError(`Failed to start screen share: ${error.message}`);
-      
-      if (error.name === 'NotAllowedError') {
-        alert("Screen sharing permission denied. Please allow screen sharing and try again.");
-      } else if (error.name === 'NOT_SUPPORTED') {
-        alert("System audio capture is not supported in this browser. Screen sharing will continue without system audio.");
-      } else if (error.message.includes('token') || error.message.includes('auth')) {
-        alert("Token authentication failed for screen sharing. Please try again.");
-      } else {
-        alert(`Failed to start screen sharing: ${error.message || 'Unknown error'}. Please try again.`);
-      }
     } finally {
       setIsStartingStream(false);
     }
-  }, [isHost, isMoviePlaying, isStartingStream, screenClient, user.uid, appId, roomId, createScreenTrack, handleStopMovie, sendStreamMessage, fetchAgoraToken]);
+  }, [isHost, isStartingStream, screenClient, user.uid, appId, roomId, createScreenTrack, handleStopMovie, sendStreamMessage, fetchAgoraToken]);
 
-  useEffect(() => {
-    if (!agoraClient) return;
-
-    const handleStreamMessageDebug = async (uid, streamId, data) => {
-      console.log('📨 STREAM MESSAGE DEBUG - Received from:', uid);
-      
-      try {
-        const text = new TextDecoder().decode(data);
-        const message = JSON.parse(text);
-        console.log('📨 Message content:', message);
-      } catch (error) {
-        console.error('❌ Failed to parse stream message:', error);
-      }
-    };
-
-    agoraClient.on('stream-message', handleStreamMessageDebug);
-    
-    return () => {
-      agoraClient.off('stream-message', handleStreamMessageDebug);
-    };
-  }, [agoraClient]);
-
-  useEffect(() => {
-    if (!agoraClient) return;
-
-    const handleStreamMessage = async (uid, streamId, data) => {
-      console.log('📨 Received stream message from UID:', uid);
-      
-      try {
-        const text = new TextDecoder().decode(data);
-        const message = JSON.parse(text);
-        
-        console.log('📨 Stream message type:', message.type, 'content:', message);
-        
-        if (message.type === 'MOVIE_START' && message.screenUid) {
-          console.log('🎯 MOVIE_START received, looking for screen UID:', message.screenUid);
-          setIsMoviePlaying(true);
-          setScreenShareError(null);
-          
-          const screenUser = remoteUsers.find(u => u.uid.toString() === message.screenUid.toString());
-          if (screenUser) {
-            console.log('✅ Found screen user immediately:', screenUser.uid);
-            setHostScreenUser(screenUser);
-          } else {
-            console.log('⏳ Screen user not found yet, will auto-detect when published');
-            setTimeout(() => {
-              const delayedScreenUser = remoteUsers.find(u => u.uid.toString() === message.screenUid.toString());
-              if (delayedScreenUser) {
-                console.log('✅ Found screen user after delay:', delayedScreenUser.uid);
-                setHostScreenUser(delayedScreenUser);
-              }
-            }, 2000);
-          }
-        } else if (message.type === 'MOVIE_STOP') {
-          console.log('🎯 MOVIE_STOP received');
-          setIsMoviePlaying(false);
-          setHostScreenUser(null);
-          setScreenShareError(null);
-        }
-      } catch (error) {
-        console.error("❌ Failed to parse stream message:", error);
-      }
-    };
-
-    agoraClient.on('stream-message', handleStreamMessage);
-    
-    return () => {
-      agoraClient.off('stream-message', handleStreamMessage);
-    };
-  }, [agoraClient, user.uid, remoteUsers]);
-
+  // Main client initialization
   useEffect(() => {
     const shouldInitialize = 
       agoraClient && 
       token && 
       !initializationRef.current.hasJoined && 
-      !initializationRef.current.isInitializing &&
-      agoraClient.connectionState !== 'CONNECTED' && 
-      agoraClient.connectionState !== 'CONNECTING';
+      !initializationRef.current.isInitializing;
 
     if (!shouldInitialize) return;
 
     const initializeAndJoin = async () => {
       try {
         initializationRef.current.isInitializing = true;
-        console.log('🚀 Initializing main Agora client...');
         setConnectionError(null);
 
         if (!validateToken(token, appId, roomId, user.uid)) {
           throw new Error('Invalid token provided');
         }
+        
+        const handleVolumeIndicator = (volumes) => {
+            let maxVolume = 0;
+            let speakerUid = null;
+    
+            volumes.forEach((volume) => {
+            if (volume.level > maxVolume && volume.level > 5) {
+                maxVolume = volume.level;
+                speakerUid = volume.uid === 0 ? user.uid : volume.uid;
+            }
+            });
+            
+            setActiveSpeakerUid(speakerUid);
+        };
 
         agoraClient.on('user-published', handleUserPublished);
         agoraClient.on('user-unpublished', handleUserUnpublished);
-        agoraClient.on('user-joined', handleUserJoined);
         agoraClient.on('user-left', handleUserLeft);
         agoraClient.on('token-privilege-will-expire', handleTokenPrivilegeWillExpire);
         agoraClient.on('token-privilege-did-expire', handleTokenPrivilegeDidExpire);
-        agoraClient.on('connection-state-change', (state) => {
-          console.log('Connection state changed:', state);
-          if (state === 'DISCONNECTED' || state === 'FAILED') {
-            setConnectionError('Connection lost. Please try rejoining.');
-          }
-        });
+        agoraClient.on("volume-indicator", handleVolumeIndicator);
         
-        console.log('🔑 Joining Agora channel...');
         await agoraClient.join(appId, roomId, token, user.uid);
-        console.log('✅ Successfully joined Agora channel');
+
+        agoraClient.enableAudioVolumeIndication();
         
-        const [micTrack, camTrack] = await AgoraRTC.createMicrophoneAndCameraTracks(
-          { encoderConfig: "music_standard" },
-          { encoderConfig: "480p_1", optimizationMode: "motion" }
-        );
+        let micTrack, camTrack;
+        try {
+            [micTrack, camTrack] = await AgoraRTC.createMicrophoneAndCameraTracks(
+              { encoderConfig: "music_standard" },
+              { encoderConfig: "480p_1", optimizationMode: "motion" }
+            );
+        } catch (mediaError) {
+            console.error("❌ CRITICAL: Failed to create media tracks.", mediaError);
+            setConnectionError(`Could not access camera or microphone. Error: ${mediaError.message}`);
+            return; 
+        }
         
         await micTrack.setEnabled(micOn);
         await camTrack.setEnabled(cameraOn);
@@ -614,7 +406,6 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, fetchAg
         
         setDataStreamReady(true);
         initializationRef.current.hasJoined = true;
-        console.log('✅ Agora client fully initialized and published');
         
       } catch (error) {
         console.error("❌ Failed to initialize and join:", error);
@@ -631,71 +422,26 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, fetchAg
     initializeAndJoin();
 
     return () => {
-      console.log('🧹 Cleaning up StreamRoom hooks...');
-      
       if (localMicrophoneTrackRef.current) {
         localMicrophoneTrackRef.current.stop();
-        localMicrophoneTrackRef.current.close();
-        localMicrophoneTrackRef.current = null;
+        localCameraTrackRef.current.close();
       }
       if (localCameraTrackRef.current) {
         localCameraTrackRef.current.stop();
         localCameraTrackRef.current.close();
-        localCameraTrackRef.current = null;
       }
       
       agoraClient.removeAllListeners();
 
       if (initializationRef.current.hasJoined) {
-        agoraClient.leave().then(() => {
-          console.log('✅ Main client left channel successfully.');
-        }).catch(e => {
-          console.error('Error leaving main channel:', e);
-        });
+        agoraClient.leave();
       }
       
-      if (screenClient && initializationRef.current.screenClientJoined) {
-        screenClient.leave().then(() => {
-          console.log('✅ Screen client left channel successfully.');
-        }).catch(e => {
-          console.error('Error leaving screen channel:', e);
-        });
-      }
-
       initializationRef.current.hasJoined = false;
       initializationRef.current.isInitializing = false;
-      initializationRef.current.screenClientJoined = false;
     };
-  }, [agoraClient, appId, roomId, token, user.uid, handleUserPublished, handleUserUnpublished, handleUserJoined, handleUserLeft, handleTokenPrivilegeWillExpire, handleTokenPrivilegeDidExpire, onTokenError, validateToken, micOn, cameraOn]);
-
-  useEffect(() => {
-    if (connectionState === 'CONNECTED' && !dataStreamRef.current && agoraClient?.createDataStream) {
-      const createDataStream = async () => {
-        try {
-          const streamId = await agoraClient.createDataStream({ reliable: true, ordered: true });
-          dataStreamRef.current = streamId;
-          console.log('✅ Data stream created successfully');
-        } catch (error) {
-          console.warn("Failed to create data stream:", error);
-        }
-      };
-      createDataStream();
-    }
-  }, [connectionState, agoraClient]);
-
-  useEffect(() => {
-    audioTracks.forEach(track => {
-      try {
-        const user = remoteUsers.find(u => u.audioTrack === track);
-        if (user && !user.uid.toString().endsWith('-screen')) {
-          track.play();
-        }
-      } catch (error) {
-        console.error("Error playing audio track:", error);
-      }
-    });
-  }, [audioTracks, remoteUsers]);
-
+  }, [agoraClient, appId, roomId, token, user, handleUserPublished, handleUserUnpublished, handleUserLeft, handleTokenPrivilegeWillExpire, handleTokenPrivilegeDidExpire, onTokenError, validateToken, micOn, cameraOn]);
+  
   const toggleCamera = useCallback(async () => {
     if (localCameraTrackRef.current) {
       const newState = !cameraOn;

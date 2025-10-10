@@ -1,35 +1,29 @@
 // src/pages/StreamRoomPage.jsx
-import React, { useCallback, useMemo } from 'react';
-import { AgoraRTCProvider } from "agora-rtc-react";
-import AgoraRTC from "agora-rtc-sdk-ng";
+import React, { useCallback } from 'react';
 import StreamRoomLayout from './StreamRoomLayout';
 import { useStreamRoomHooks } from './useStreamRoomHooks';
 import { useAuth } from '../context/AuthContext';
 import { fetchAgoraToken } from '../services/agoraApi';
 
-const StreamRoomPage = ({ isHost, roomId, token, onLeaveRoom, appId }) => {
+// --- FIX: Accept the client prop ---
+const StreamRoomPage = ({ isHost, roomId, token, onLeaveRoom, appId, client }) => {
   const { user } = useAuth();
 
   const agoraTokenFetcher = useCallback((channel, uid) => {
       return fetchAgoraToken(channel, uid, () => user.getIdToken());
   }, [user]);
 
-
   const {
     micOn,
     cameraOn,
     isMoviePlaying,
     selfViewTrack,
-    dataStreamReady,
     hostScreenUser,
-    hostCameraUser,
     connectionError,
     joinAttempts,
-    screenVideoTrack,
     connectionState,
     remoteUsers,
     screenShareError,
-    setScreenShareError,
     localMicrophoneTrackRef,
     localCameraTrackRef,
     toggleCamera,
@@ -43,6 +37,7 @@ const StreamRoomPage = ({ isHost, roomId, token, onLeaveRoom, appId }) => {
     token,
     user,
     appId,
+    client, // Pass the client to the hook
     fetchAgoraToken: agoraTokenFetcher,
   });
 
@@ -97,8 +92,6 @@ const StreamRoomPage = ({ isHost, roomId, token, onLeaveRoom, appId }) => {
     );
   }
 
-  // The wrapper in the original file is not needed here as it's handled in Room.jsx
-  // This component now assumes it's rendered within an AgoraRTCProvider
   return (
     <div className="min-h-screen bg-black">
       <StreamRoomLayout
@@ -110,24 +103,17 @@ const StreamRoomPage = ({ isHost, roomId, token, onLeaveRoom, appId }) => {
         micOn={micOn}
         cameraOn={cameraOn}
         handleLeave={handleLeave}
-        connectionState={connectionState} // <-- PASS PROP TO LAYOUT
+        connectionState={connectionState}
         handleStartStream={handleStartStream}
         isMoviePlaying={isMoviePlaying}
         roomId={roomId}
         handleStopMovie={handleStopMovie}
-        hostUid={isHost ? user.uid : null}
-        dataStreamReady={dataStreamReady || connectionState === 'CONNECTED'}
         hostScreenUser={hostScreenUser}
-        hostCameraUser={hostCameraUser}
-        connectionError={connectionError}
-        screenVideoTrack={screenVideoTrack}
         screenShareError={screenShareError}
-        setScreenShareError={setScreenShareError}
         activeSpeakerUid={activeSpeakerUid}
       />
     </div>
   );
 };
-
 
 export default StreamRoomPage;
