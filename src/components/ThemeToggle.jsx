@@ -1,14 +1,17 @@
+// src/components/ThemeToggle.jsx
 import React from 'react';
-import { SunIcon, MoonIcon } from './Icons';
+import { Sun, Moon } from 'lucide-react';
+import { Button } from './ui/Button';
 
-const ThemeToggle = ({ theme, toggleTheme, className }) => (
-  <button
+const ThemeToggle = ({ theme, toggleTheme }) => (
+  <Button
     onClick={toggleTheme}
-    className={`p-3 rounded-full bg-gray-100 dark:bg-gray-900 text-white dark:text-black hover:bg-gray-300 dark:hover:bg-gray-700 transition-all duration-300 shadow-lg border border-gray-300 dark:border-gray-800 ${className}`}
+    variant="ghost"
+    size="icon"
     aria-label="Toggle theme"
   >
-    {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
-  </button>
+    {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+  </Button>
 );
 
 export default ThemeToggle;
