@@ -1,7 +1,5 @@
 // src/pages/StreamRoomPage.jsx
 import React, { useCallback } from 'react';
-import { AgoraRTCProvider } from "agora-rtc-react";
-import AgoraRTC from "agora-rtc-sdk-ng";
 import StreamRoomLayout from './StreamRoomLayout';
 import { useStreamRoomHooks } from './useStreamRoomHooks';
 import { useAuth } from '../context/AuthContext';
@@ -141,4 +139,4 @@ const StreamRoomPageWrapper = (props) => {
   );
 };
 
-export default StreamRoomPageWrapper;
+export default StreamRoomPage;

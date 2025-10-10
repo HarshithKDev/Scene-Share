@@ -5,7 +5,7 @@ import { useAuth } from './context/AuthContext';
 import { updateProfile } from 'firebase/auth';
 import { sanitizeInput } from './utils/sanitize';
 
-import ErrorBoundary from './components/ErrorBoundary';
+import ErrorBoundary from './components/ErrorBoundary'; 
 import ProtectedRoute from './components/routes/ProtectedRoute.jsx';
 import Room from './components/routes/Room';
 import './index.css';

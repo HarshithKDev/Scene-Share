@@ -1,6 +1,6 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-import tailwindcss from '@tailwindcss/vite'
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -11,6 +11,12 @@ export default defineConfig({
       'Cross-Origin-Embedder-Policy': 'require-corp',
     },
     proxy: {
+      // ADD THIS RULE
+      '/create-room': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
+      // Keep the existing rules
       '/get-agora-token': {
         target: 'http://localhost:8080',
         changeOrigin: true,

@@ -591,15 +591,45 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, fetchAg
     initializeAndJoin();
 
     return () => {
-      if (agoraClient) {
-        agoraClient.off('user-published', handleUserPublished);
-        agoraClient.off('user-unpublished', handleUserUnpublished);
-        agoraClient.off('user-joined', handleUserJoined);
-        agoraClient.off('user-left', handleUserLeft);
-        agoraClient.off('token-privilege-will-expire', handleTokenPrivilegeWillExpire);
-        agoraClient.off('token-privilege-did-expire', handleTokenPrivilegeDidExpire);
-        agoraClient.off('connection-state-change');
+      console.log('🧹 Cleaning up StreamRoom hooks...');
+      
+      // Stop and close local tracks
+      if (localMicrophoneTrackRef.current) {
+        localMicrophoneTrackRef.current.stop();
+        localMicrophoneTrackRef.current.close();
+        localMicrophoneTrackRef.current = null;
       }
+      if (localCameraTrackRef.current) {
+        localCameraTrackRef.current.stop();
+        localCameraTrackRef.current.close();
+        localCameraTrackRef.current = null;
+      }
+      
+      // Detach all event listeners
+      agoraClient.removeAllListeners();
+
+      // Leave the main channel
+      if (initializationRef.current.hasJoined) {
+        agoraClient.leave().then(() => {
+          console.log('✅ Main client left channel successfully.');
+        }).catch(e => {
+          console.error('Error leaving main channel:', e);
+        });
+      }
+      
+      // Leave the screen channel
+      if (screenClient && initializationRef.current.screenClientJoined) {
+        screenClient.leave().then(() => {
+          console.log('✅ Screen client left channel successfully.');
+        }).catch(e => {
+          console.error('Error leaving screen channel:', e);
+        });
+      }
+
+      // Reset initialization state
+      initializationRef.current.hasJoined = false;
+      initializationRef.current.isInitializing = false;
+      initializationRef.current.screenClientJoined = false;
     };
   }, [agoraClient, appId, roomId, token, user.uid, handleUserPublished, handleUserUnpublished, handleUserJoined, handleUserLeft, handleTokenPrivilegeWillExpire, handleTokenPrivilegeDidExpire, onTokenError, validateToken, micOn, cameraOn]);
 
