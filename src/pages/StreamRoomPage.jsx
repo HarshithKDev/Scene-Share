@@ -18,6 +18,8 @@ const StreamRoomPage = ({ isHost, roomId, token, user, onLeaveRoom, theme, toggl
     screenVideoTrack,
     connectionState,
     remoteUsers,
+    screenShareError,
+    setScreenShareError,
     localMicrophoneTrackRef,
     localCameraTrackRef,
     toggleCamera,
@@ -110,6 +112,8 @@ const StreamRoomPage = ({ isHost, roomId, token, user, onLeaveRoom, theme, toggl
         hostCameraUser={hostCameraUser}
         connectionError={connectionError}
         screenVideoTrack={screenVideoTrack}
+        screenShareError={screenShareError}
+        setScreenShareError={setScreenShareError}
       />
     </div>
   );

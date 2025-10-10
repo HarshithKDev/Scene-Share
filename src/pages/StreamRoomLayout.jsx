@@ -35,14 +35,14 @@ const StreamRoomLayout = ({
   hostScreenUser,
   hostCameraUser,
   connectionError,
-  screenVideoTrack
+  screenVideoTrack,
+  screenShareError,
+  setScreenShareError
 }) => {
   const [copied, setCopied] = useState(false);
   const roomCode = roomId;
   
   const mainVideoContainerRef = useRef(null);
-  const hostScreenContainerRef = useRef(null);
-  const [screenShareError, setScreenShareError] = useState(null);
 
   const totalParticipants = 1 + remoteUsers.length;
 
@@ -53,7 +53,7 @@ const StreamRoomLayout = ({
     });
   };
 
-  // Handle screen share playback in main window for HOST
+  // Handle screen share playback for HOST
   useEffect(() => {
     if (isHost && isMoviePlaying && screenVideoTrack && mainVideoContainerRef.current) {
       console.log('🎯 HOST: Playing screen share in main window');
@@ -61,8 +61,10 @@ const StreamRoomLayout = ({
       try {
         screenVideoTrack.play(mainVideoContainerRef.current);
         console.log('✅ Host screen share playing successfully');
+        setScreenShareError(null);
       } catch (error) {
         console.error('❌ Host screen share playback error:', error);
+        setScreenShareError('Failed to play screen share: ' + error.message);
       }
       
       return () => {
@@ -71,59 +73,65 @@ const StreamRoomLayout = ({
         }
       };
     }
-  }, [isHost, isMoviePlaying, screenVideoTrack]);
+  }, [isHost, isMoviePlaying, screenVideoTrack, setScreenShareError]);
 
-  // Handle remote host screen share for PARTICIPANTS
+  // Handle remote screen share playback for PARTICIPANTS
   useEffect(() => {
-    if (!isHost && isMoviePlaying && hostScreenUser && hostScreenUser.videoTrack) {
-      console.log('🎯 PARTICIPANT: Setting up remote screen share playback', hostScreenUser.uid);
+    if (!isHost && isMoviePlaying && hostScreenUser && hostScreenUser.videoTrack && mainVideoContainerRef.current) {
+      console.log('🎯 PARTICIPANT: Setting up remote screen share playback for UID:', hostScreenUser.uid);
       
       const playScreenShare = async () => {
-        if (hostScreenContainerRef.current && hostScreenUser.videoTrack) {
-          try {
-            console.log('🎬 Attempting to play screen share video track...');
-            
-            setScreenShareError(null);
-            hostScreenUser.videoTrack.stop();
-            await hostScreenUser.videoTrack.play(hostScreenContainerRef.current);
-            
-            console.log('✅ Screen share video track playing successfully');
-            
-            hostScreenUser.videoTrack.on('track-ended', () => {
-              console.log('📺 Screen share track ended');
-            });
-            
-          } catch (error) {
-            console.error('❌ Screen share playback failed:', error);
-            setScreenShareError('Failed to play screen share. Please try refreshing.');
-          }
+        try {
+          console.log('🎬 Attempting to play screen share video track...');
+          
+          setScreenShareError(null);
+          
+          // Stop any existing playback first
+          hostScreenUser.videoTrack.stop();
+          
+          // Play the screen share video track in the main container
+          await hostScreenUser.videoTrack.play(mainVideoContainerRef.current);
+          
+          console.log('✅ Screen share video track playing successfully for participant');
+          
+          // Handle track ending
+          hostScreenUser.videoTrack.on('track-ended', () => {
+            console.log('📺 Screen share track ended');
+          });
+          
+        } catch (error) {
+          console.error('❌ Screen share playback failed:', error);
+          setScreenShareError('Failed to play screen share. Please try refreshing.');
         }
       };
       
       playScreenShare();
     }
-  }, [isHost, isMoviePlaying, hostScreenUser]);
+  }, [isHost, isMoviePlaying, hostScreenUser, setScreenShareError]);
 
-  // Handle camera track playback
+  // Handle camera track playback for host when not sharing screen
   useEffect(() => {
     if (isHost && selfViewTrack && !isMoviePlaying && mainVideoContainerRef.current) {
       try {
         selfViewTrack.play(mainVideoContainerRef.current);
+        setScreenShareError(null);
       } catch (error) {
         console.error('Camera playback error:', error);
       }
     }
-  }, [isHost, selfViewTrack, isMoviePlaying]);
+  }, [isHost, selfViewTrack, isMoviePlaying, setScreenShareError]);
 
-  // Main view shows ACTUAL screen share content
+  // Main view shows screen share content or waiting state
   const renderMainView = () => {
+    // For PARTICIPANTS
     if (!isHost) {
       if (isMoviePlaying && hostScreenUser) {
         return (
           <div className="relative w-full h-full bg-black">
+            {/* Main video container for screen share */}
             <div 
               className="w-full h-full" 
-              ref={hostScreenContainerRef}
+              ref={mainVideoContainerRef}
               style={{ backgroundColor: 'black' }}
             />
             
@@ -132,7 +140,7 @@ const StreamRoomLayout = ({
             </div>
             
             <div className="absolute top-4 right-4 bg-black/70 text-white px-2 py-1 rounded text-xs">
-              {hostScreenUser.videoTrack ? 'Video track: Active' : 'Video track: Loading...'}
+              {hostScreenUser.videoTrack ? 'Video: Active' : 'Video: Loading...'}
             </div>
             
             {screenShareError && (
@@ -154,8 +162,30 @@ const StreamRoomLayout = ({
             <div className="text-white text-center">
               <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-white mx-auto mb-4"></div>
               <div className="text-xl font-semibold mb-2">Connecting to Screen Share...</div>
-              <div className="text-gray-400">Host is sharing their screen</div>
-              <div className="text-sm text-gray-500 mt-2">
+              <div className="text-gray-400 mb-4">Host is sharing their screen</div>
+              
+              {/* MANUAL REFRESH BUTTON */}
+              <button 
+                onClick={() => {
+                  console.log('🔄 Manual refresh triggered by participant');
+                  // Force re-check for screen share user
+                  const screenUser = remoteUsers.find(user => 
+                    user.uid.toString().endsWith('-screen') && user.videoTrack
+                  );
+                  if (screenUser) {
+                    console.log('✅ Found screen user on manual refresh:', screenUser.uid);
+                    setScreenShareError(null);
+                  } else {
+                    console.log('❌ No screen user found on manual refresh');
+                    setScreenShareError('No screen share detected. Ask host to restart screen share.');
+                  }
+                }}
+                className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition-colors"
+              >
+                Refresh Connection
+              </button>
+              
+              <div className="text-sm text-gray-500 mt-4">
                 Detected {remoteUsers.length} user{remoteUsers.length !== 1 ? 's' : ''} in room
               </div>
             </div>
@@ -177,6 +207,7 @@ const StreamRoomLayout = ({
       }
     }
 
+    // For HOST
     return (
       <div className="relative w-full h-full bg-black">
         {isMoviePlaying ? (
@@ -217,6 +248,13 @@ const StreamRoomLayout = ({
             </button>
           </div>
         )}
+
+        {screenShareError && isHost && (
+          <div className="absolute top-4 left-4 right-4 bg-red-600 text-white p-4 rounded-lg shadow-lg z-20">
+            <div className="font-bold">Screen Share Error</div>
+            <div className="text-sm">{screenShareError}</div>
+          </div>
+        )}
       </div>
     );
   };
@@ -240,6 +278,7 @@ const StreamRoomLayout = ({
           <UsersIcon /> Participants ({totalParticipants})
         </h3>
 
+        {/* Self View */}
         <div className="relative rounded-lg overflow-hidden bg-black shrink-0 border-2 border-blue-500">
           {cameraOn && selfViewTrack ? (
             <LocalVideoTrack 
@@ -276,6 +315,7 @@ const StreamRoomLayout = ({
           </div>
         </div>
 
+        {/* Remote Users */}
         {remoteUsers.map(remoteUser => {
           const isScreenClient = remoteUser.uid.toString().endsWith('-screen');
           if (isScreenClient) return null;
@@ -302,6 +342,7 @@ const StreamRoomLayout = ({
         
         <div className="flex-grow"></div>
         
+        {/* Controls */}
         <div className="mt-auto shrink-0 space-y-4">
           {isHost && (
             <div className="space-y-2">
