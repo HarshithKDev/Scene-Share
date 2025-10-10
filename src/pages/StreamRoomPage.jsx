@@ -1,10 +1,20 @@
+// src/pages/StreamRoomPage.jsx
 import React, { useCallback } from 'react';
 import { AgoraRTCProvider } from "agora-rtc-react";
 import AgoraRTC from "agora-rtc-sdk-ng";
 import StreamRoomLayout from './StreamRoomLayout';
 import { useStreamRoomHooks } from './useStreamRoomHooks';
+import { useAuth } from '../context/AuthContext';
+import { fetchAgoraToken } from '../services/agoraApi';
 
-const StreamRoomPage = ({ isHost, roomId, token, user, onLeaveRoom, theme, toggleTheme, appId, onTokenError, fetchAgoraToken }) => {
+const StreamRoomPage = ({ isHost, roomId, token, onLeaveRoom, appId }) => {
+  const { user } = useAuth();
+
+  const agoraTokenFetcher = useCallback((channel, uid) => {
+      return fetchAgoraToken(channel, uid, () => user.getIdToken());
+  }, [user]);
+
+
   const {
     micOn,
     cameraOn,
@@ -32,8 +42,7 @@ const StreamRoomPage = ({ isHost, roomId, token, user, onLeaveRoom, theme, toggl
     token,
     user,
     appId,
-    fetchAgoraToken,
-    onTokenError
+    fetchAgoraToken: agoraTokenFetcher,
   });
 
   const handleLeave = useCallback(async () => {
@@ -67,14 +76,15 @@ const StreamRoomPage = ({ isHost, roomId, token, user, onLeaveRoom, theme, toggl
             <div className="text-sm font-mono break-all">{connectionError}</div>
           </div>
           <div className="flex gap-4 justify-center">
-            <button 
+            <button
               onClick={handleLeave}
               className="bg-red-600 text-white py-2 px-4 rounded hover:bg-red-700"
             >
               Return to Lobby
             </button>
+            {/* Note: Reloading is not ideal, a state reset would be better, but this is a quick fix */}
             {joinAttempts < 3 && (
-              <button 
+              <button
                 onClick={() => window.location.reload()}
                 className="bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700"
               >
@@ -89,9 +99,8 @@ const StreamRoomPage = ({ isHost, roomId, token, user, onLeaveRoom, theme, toggl
 
   return (
     <div className="min-h-screen bg-black">
-      <StreamRoomLayout 
+      <StreamRoomLayout
         isHost={isHost}
-        user={user}
         selfViewTrack={selfViewTrack}
         remoteUsers={remoteUsers}
         toggleMic={toggleMic}
@@ -99,8 +108,6 @@ const StreamRoomPage = ({ isHost, roomId, token, user, onLeaveRoom, theme, toggl
         micOn={micOn}
         cameraOn={cameraOn}
         handleLeave={handleLeave}
-        theme={theme}
-        toggleTheme={toggleTheme}
         isConnected={connectionState === 'CONNECTED'}
         handleStartStream={handleStartStream}
         isMoviePlaying={isMoviePlaying}
@@ -120,9 +127,9 @@ const StreamRoomPage = ({ isHost, roomId, token, user, onLeaveRoom, theme, toggl
 };
 
 const StreamRoomPageWrapper = (props) => {
-  const client = React.useMemo(() => 
-    AgoraRTC.createClient({ 
-      codec: "vp8", 
+  const client = React.useMemo(() =>
+    AgoraRTC.createClient({
+      codec: "vp8",
       mode: "rtc",
     }), []
   );

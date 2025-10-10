@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
+import { sanitizeInput } from '../utils/sanitize';
 
 const UsernameModal = ({ onSubmit, isNewUser }) => {
   const [username, setUsername] = useState('');
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (username.trim()) {
-      onSubmit(username);
+    const sanitizedUsername = sanitizeInput(username.trim());
+    if (sanitizedUsername) {
+      onSubmit(sanitizedUsername);
     }
   };
 
@@ -28,6 +30,7 @@ const UsernameModal = ({ onSubmit, isNewUser }) => {
             placeholder="Enter your username"
             required
             autoFocus
+            maxLength={50}
           />
           <button
             type="submit"

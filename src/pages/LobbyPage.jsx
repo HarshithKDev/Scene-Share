@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import ThemeToggle from '../components/ThemeToggle';
 import { PlusIcon, UsersIcon, LogoutIcon, ProfileIcon } from '../components/Icons';
+import { sanitizeInput } from '../utils/sanitize';
+
 
 const LobbyPage = ({ user, onCreateRoom, onJoinRoom, onLogout, onEditUsername, theme, toggleTheme }) => {
   const [roomId, setRoomId] = useState('');
@@ -13,11 +15,13 @@ const LobbyPage = ({ user, onCreateRoom, onJoinRoom, onLogout, onEditUsername, t
 
   const handleJoinRoom = (e) => {
     e.preventDefault();
-    console.log(`Join room action triggered with ID: ${roomId}`);
-    if (roomId.trim()) {
-      onJoinRoom(roomId);
+    const sanitizedRoomId = sanitizeInput(roomId.trim());
+    console.log(`Join room action triggered with ID: ${sanitizedRoomId}`);
+    if (sanitizedRoomId) {
+      onJoinRoom(sanitizedRoomId);
     }
   };
+
 
   const handleEditUsernameClick = () => {
     onEditUsername();

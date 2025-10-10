@@ -10,10 +10,19 @@ app.use(express.json());
 app.use(cors());
 
 // Initialize Firebase Admin SDK
-const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount)
-});
+// IMPORTANT: It is strongly recommended to use a secure method to store and access your service account key,
+// such as a secret manager (e.g., Google Secret Manager, AWS Secrets Manager, HashiCorp Vault).
+// Avoid committing the key to your version control system.
+try {
+  const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
+  admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount)
+  });
+} catch (error) {
+  console.error('Error initializing Firebase Admin SDK:', error);
+  process.exit(1);
+}
+
 
 const verifyFirebaseToken = async (req, res, next) => {
   const authHeader = req.headers.authorization;
@@ -35,11 +44,20 @@ const verifyFirebaseToken = async (req, res, next) => {
 };
 
 app.post('/get-agora-token', verifyFirebaseToken, (req, res) => {
+  // Input validation and sanitization
   const { channelName, uid } = req.body;
 
-  if (!channelName || !uid) {
-    return res.status(400).json({ error: 'channelName and uid are required' });
+  if (!channelName || !uid || typeof channelName !== 'string' || typeof uid !== 'string') {
+    return res.status(400).json({ error: 'channelName and uid are required and must be strings.' });
   }
+
+  const sanitizedChannelName = channelName.replace(/[^a-zA-Z0-9_-]/g, '');
+  const sanitizedUid = uid.replace(/[^a-zA-Z0-9_-]/g, '');
+
+  if (sanitizedChannelName.length === 0 || sanitizedUid.length === 0) {
+    return res.status(400).json({ error: 'Invalid channelName or uid.' });
+  }
+
 
   const appId = process.env.AGORA_APP_ID;
   const appCertificate = process.env.AGORA_APP_CERTIFICATE;
@@ -55,26 +73,22 @@ app.post('/get-agora-token', verifyFirebaseToken, (req, res) => {
     const currentTimestamp = Math.floor(Date.now() / 1000);
     const privilegeExpiredTs = currentTimestamp + expirationTimeInSeconds;
 
-    // Ensure UID is treated as string
-    const stringUid = uid.toString();
-    
-    console.log(`🔄 Generating token for channel: ${channelName}, UID: ${stringUid}`);
+    console.log(`🔄 Generating token for channel: ${sanitizedChannelName}, UID: ${sanitizedUid}`);
 
-    // Use buildTokenWithUserAccount for string-based UIDs
     const token = RtcTokenBuilder.buildTokenWithUserAccount(
       appId,
       appCertificate,
-      channelName,
-      stringUid,
+      sanitizedChannelName,
+      sanitizedUid,
       role,
       privilegeExpiredTs
     );
 
-    console.log(`✅ Token generated successfully for UID: ${stringUid}`);
-    
-    return res.status(200).json({ 
+    console.log(`✅ Token generated successfully for UID: ${sanitizedUid}`);
+
+    return res.status(200).json({
       token: token,
-      uid: stringUid
+      uid: sanitizedUid
     });
   } catch (error) {
     console.error('❌ Error generating Agora token:', error);
@@ -84,56 +98,15 @@ app.post('/get-agora-token', verifyFirebaseToken, (req, res) => {
 
 // Health check endpoint with more detailed info
 app.get('/health', (req, res) => {
-  res.status(200).json({ 
-    status: 'OK', 
+  res.status(200).json({
+    status: 'OK',
     agoraAppId: process.env.AGORA_APP_ID ? 'Configured' : 'Missing',
     agoraCertificate: process.env.AGORA_APP_CERTIFICATE ? 'Configured' : 'Missing',
-    firebase: serviceAccount.project_id ? 'Configured' : 'Missing',
+    firebase: admin.apps.length > 0 ? 'Configured' : 'Missing',
     timestamp: new Date().toISOString()
   });
 });
 
-// Test endpoint without auth for debugging
-app.get('/test-token', (req, res) => {
-  const { channelName, uid } = req.query;
-  
-  if (!channelName || !uid) {
-    return res.status(400).json({ error: 'channelName and uid query parameters are required' });
-  }
-
-  const appId = process.env.AGORA_APP_ID;
-  const appCertificate = process.env.AGORA_APP_CERTIFICATE;
-
-  if (!appId || !appCertificate) {
-    return res.status(500).json({ error: 'Server configuration error.' });
-  }
-
-  try {
-    const role = RtcRole.PUBLISHER;
-    const expirationTimeInSeconds = 3600;
-    const currentTimestamp = Math.floor(Date.now() / 1000);
-    const privilegeExpiredTs = currentTimestamp + expirationTimeInSeconds;
-
-    const token = RtcTokenBuilder.buildTokenWithUserAccount(
-      appId,
-      appCertificate,
-      channelName,
-      uid.toString(),
-      role,
-      privilegeExpiredTs
-    );
-
-    res.status(200).json({ 
-      token: token,
-      channelName: channelName,
-      uid: uid,
-      appId: appId
-    });
-  } catch (error) {
-    console.error('Test token error:', error);
-    res.status(500).json({ error: 'Failed to generate test token: ' + error.message });
-  }
-});
 
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {

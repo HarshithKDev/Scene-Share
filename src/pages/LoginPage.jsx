@@ -1,3 +1,4 @@
+// src/pages/LoginPage.jsx
 import React, { useState } from 'react';
 import ThemeToggle from '../components/ThemeToggle';
 import { GoogleIcon } from '../components/Icons';
@@ -8,8 +9,11 @@ import {
   signInWithPopup,
   googleProvider
 } from '../firebase';
+import { useTheme } from '../context/ThemeContext';
 
-const LoginPage = ({ theme, toggleTheme }) => {
+
+const LoginPage = () => {
+  const { theme, toggleTheme } = useTheme();
   const [activeTab, setActiveTab] = useState('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
