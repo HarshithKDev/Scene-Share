@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+// App.jsx - Updated token handling
+import React, { useState, useEffect, useCallback } from 'react';
 import { auth, updateProfile } from './firebase';
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { Routes, Route, useNavigate, useParams, Navigate, useLocation } from 'react-router-dom';
@@ -8,7 +9,7 @@ import StreamRoomPageWrapper from './pages/StreamRoomPage';
 import UsernameModal from './components/UsernameModal';
 import './index.css';
 
-const BACKEND_URL = "";
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || '';
 
 export default function App() {
   const [theme, setTheme] = useState('dark');
@@ -52,9 +53,9 @@ export default function App() {
     if (userToUpdate && newUsername) {
       try {
         await updateProfile(userToUpdate, { displayName: newUsername });
-        await userToUpdate.reload(); // Force a reload of the user's profile
+        await userToUpdate.reload();
         const refreshedUser = auth.currentUser;
-        setUser(refreshedUser); // Set state with the refreshed user
+        setUser(refreshedUser);
         setShowUsernameModal(false);
         setIsNewUser(false); 
       } catch (error) {
@@ -63,10 +64,17 @@ export default function App() {
     }
   };
 
-  const fetchAgoraToken = async (channelName) => {
-    if (!user) return null;
+  // Enhanced token fetching with error handling
+  const fetchAgoraToken = useCallback(async (channelName) => {
+    if (!user) {
+      console.error('No user authenticated');
+      return null;
+    }
+    
     try {
       const idToken = await user.getIdToken();
+      console.log('Fetching token for channel:', channelName);
+      
       const response = await fetch(`${BACKEND_URL}/get-agora-token`, {
         method: 'POST',
         headers: {
@@ -75,17 +83,21 @@ export default function App() {
         },
         body: JSON.stringify({ channelName }),
       });
+      
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`Failed to get token: ${errorText}`);
+        console.error('Token fetch failed:', response.status, errorText);
+        throw new Error(`Failed to get token: ${response.status} ${errorText}`);
       }
+      
       const data = await response.json();
+      console.log('Token received successfully');
       return data.token;
     } catch (error) {
       console.error("Error fetching Agora token:", error);
       return null;
     }
-  };
+  }, [user]);
 
   const handleCreateRoom = async () => {
     if (!user) return;
@@ -122,6 +134,7 @@ export default function App() {
     const location = useLocation();
     const [agoraToken, setAgoraToken] = useState(null);
     const [loadingToken, setLoadingToken] = useState(true);
+    const [tokenError, setTokenError] = useState(null);
 
     // Check sessionStorage to persist host status on refresh
     const hostedRooms = JSON.parse(sessionStorage.getItem('hosted_rooms') || '{}');
@@ -129,24 +142,51 @@ export default function App() {
 
     useEffect(() => {
       const getToken = async () => {
-        if (user) {
+        if (user && roomId) {
+          setTokenError(null);
           const token = await fetchAgoraToken(roomId);
           if (token) {
             setAgoraToken(token);
+          } else {
+            setTokenError('Failed to get access token. Please try again.');
           }
           setLoadingToken(false);
         }
       };
       getToken();
-    }, [roomId, user]);
+    }, [roomId, user, fetchAgoraToken]);
 
     if (loadingToken) {
-      return <div className="min-h-screen bg-black flex items-center justify-center text-white">Joining room...</div>;
+      return (
+        <div className="min-h-screen bg-black flex items-center justify-center text-white">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
+            <div>Joining room {roomId}...</div>
+          </div>
+        </div>
+      );
+    }
+
+    if (tokenError) {
+      return (
+        <div className="min-h-screen bg-black flex items-center justify-center text-white">
+          <div className="text-center">
+            <div className="text-red-500 text-xl mb-4">Error</div>
+            <div className="mb-4">{tokenError}</div>
+            <button 
+              onClick={handleLeaveRoom}
+              className="bg-red-600 text-white py-2 px-4 rounded hover:bg-red-700"
+            >
+              Return to Lobby
+            </button>
+          </div>
+        </div>
+      );
     }
 
     return (
       <StreamRoomPageWrapper
-        key={user.uid} // Add a key to force re-mount on user change
+        key={`${user.uid}-${roomId}`} // Force re-mount on room or user change
         isHost={isHost}
         roomId={roomId}
         token={agoraToken}
@@ -155,6 +195,7 @@ export default function App() {
         theme={theme}
         toggleTheme={toggleTheme}
         appId={import.meta.env.VITE_AGORA_APP_ID}
+        onTokenError={setTokenError}
       />
     );
   };

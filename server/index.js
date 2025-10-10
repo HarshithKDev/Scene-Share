@@ -1,23 +1,19 @@
+// server/index.js - Updated token generation
 const express = require('express');
 const { RtcTokenBuilder, RtcRole } = require('agora-token');
 const cors = require('cors');
 require('dotenv').config();
 const admin = require('firebase-admin');
 
-// --- INITIALIZATION ---
-
-// Initialize Express app
 const app = express();
 app.use(express.json());
-app.use(cors()); // Enable CORS for your React frontend
+app.use(cors());
 
 // Initialize Firebase Admin SDK
 const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount)
 });
-
-// --- MIDDLEWARE TO VERIFY FIREBASE TOKEN ---
 
 const verifyFirebaseToken = async (req, res, next) => {
   const authHeader = req.headers.authorization;
@@ -30,7 +26,7 @@ const verifyFirebaseToken = async (req, res, next) => {
 
   try {
     const decodedToken = await admin.auth().verifyIdToken(idToken);
-    req.user = decodedToken; // Add user info to the request object
+    req.user = decodedToken;
     next();
   } catch (error) {
     console.error('Error verifying Firebase token:', error);
@@ -38,56 +34,63 @@ const verifyFirebaseToken = async (req, res, next) => {
   }
 };
 
-// --- API ENDPOINT FOR GENERATING AGORA TOKEN ---
-
 app.post('/get-agora-token', verifyFirebaseToken, (req, res) => {
-  // Get channelName and UID from the request body
   const { channelName } = req.body;
-  const uid = req.user.uid; // Use the verified Firebase UID
+  const uid = req.user.uid;
 
   if (!channelName) {
     return res.status(400).json({ error: 'channelName is required' });
   }
-
-  // Set role and expiration time for the token
-  const role = RtcRole.PUBLISHER;
-  const expirationTimeInSeconds = 3600; // 1 hour
-  const currentTimestamp = Math.floor(Date.now() / 1000);
-  const privilegeExpiredTs = currentTimestamp + expirationTimeInSeconds;
 
   // Get Agora credentials from environment variables
   const appId = process.env.AGORA_APP_ID;
   const appCertificate = process.env.AGORA_APP_CERTIFICATE;
 
   if (!appId || !appCertificate) {
-    console.error('Agora App ID or Certificate is missing from .env file');
+    console.error('Agora App ID or Certificate is missing');
     return res.status(500).json({ error: 'Server configuration error.' });
   }
 
-  // Build the token
   try {
-    const token = RtcTokenBuilder.buildTokenWithUserAccount(
-  appId,
-  appCertificate,
-  channelName,
-  uid, // uid is the user account string from Firebase
-  role,
-  privilegeExpiredTs
-);
+    // Generate token with proper parameters
+    const role = RtcRole.PUBLISHER;
+    const expirationTimeInSeconds = 3600; // 1 hour
+    const currentTimestamp = Math.floor(Date.now() / 1000);
+    const privilegeExpiredTs = currentTimestamp + expirationTimeInSeconds;
+
+    // IMPORTANT: Use buildTokenWithUid for numeric UID or buildTokenWithUserAccount for string UID
+    const token = RtcTokenBuilder.buildTokenWithUid(
+      appId,
+      appCertificate,
+      channelName,
+      0, // Use 0 for dynamic UID assignment, or convert Firebase UID to number
+      role,
+      privilegeExpiredTs
+    );
 
     console.log(`Token generated for channel: ${channelName}, user: ${uid}`);
-    return res.status(200).json({ token: token });
+    
+    return res.status(200).json({ 
+      token: token,
+      appId: appId, // Return appId for verification
+      channel: channelName
+    });
   } catch (error) {
     console.error('Error generating Agora token:', error);
-    return res.status(500).json({ error: 'Failed to generate token.' });
+    return res.status(500).json({ error: 'Failed to generate token: ' + error.message });
   }
 });
 
-// --- START THE SERVER ---
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.status(200).json({ 
+    status: 'OK', 
+    agoraAppId: process.env.AGORA_APP_ID ? 'Configured' : 'Missing',
+    firebase: serviceAccount.project_id 
+  });
+});
 
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
-  console.log('Agora App ID:', process.env.AGORA_APP_ID ? 'Loaded' : 'Missing!');
-  console.log('Firebase Project ID:', serviceAccount.project_id);
 });

@@ -22,11 +22,10 @@ import {
   CheckIcon
 } from '../components/Icons';
 
-// StreamRoomLayout component (same as before)
+// Fixed StreamRoomLayout - Actual screen share content in main window
 const StreamRoomLayout = ({ 
   isHost, 
   user, 
-  mainViewTrack, 
   selfViewTrack, 
   remoteUsers, 
   toggleMic, 
@@ -43,14 +42,24 @@ const StreamRoomLayout = ({
   handleStopMovie, 
   hostUid, 
   dataStreamReady,
-  hostScreenTrack,
-  hostCameraTrack
+  hostScreenUser,
+  hostCameraUser,
+  connectionError,
+  screenVideoTrack // Pass the actual screen track
 }) => {
   const [copied, setCopied] = useState(false);
   const roomCode = roomId;
   
-  const hostUser = remoteUsers.find(u => u.uid.toString() === (hostUid || '').toString());
-  const participantUsers = remoteUsers.filter(u => u.uid.toString() !== (hostUid || '').toString());
+  const mainVideoContainerRef = useRef(null);
+  const hostScreenContainerRef = useRef(null);
+
+  const hostUser = hostCameraUser || remoteUsers.find(u => u.uid.toString() === (hostUid || '').toString());
+  const participantUsers = remoteUsers.filter(u => {
+    const uidStr = u.uid.toString();
+    return uidStr !== (hostUid || '').toString() && 
+           uidStr !== (hostScreenUser?.uid || '').toString();
+  });
+  
   const totalParticipants = 1 + remoteUsers.length;
 
   const handleCopyRoomId = () => {
@@ -60,104 +69,141 @@ const StreamRoomLayout = ({
     });
   };
 
-  // Enhanced main view logic
-  const renderMainView = () => {
-    if (isMoviePlaying) {
-      if (isHost) {
-        // Host sees their own screen share
-        return (
-          <div className="relative w-full h-full bg-black">
-            {mainViewTrack && (
-              <LocalVideoTrack 
-                track={mainViewTrack} 
-                play={true} 
-                style={{ width: '100%', height: '100%', objectFit: 'contain' }} 
-              />
-            )}
-            {/* Camera placeholder when screen sharing */}
-            {!cameraOn && (
-              <div className="absolute bottom-4 right-4 w-64 h-48 bg-gray-800 rounded-lg flex items-center justify-center">
-                <div className="text-white text-center">
-                  <VideoCameraSlashIcon className="w-12 h-12 mx-auto mb-2" />
-                  <div className="text-sm">Camera disabled during screen share</div>
-                </div>
-              </div>
-            )}
-          </div>
-        );
+  // Handle screen share playback in main window for HOST
+  useEffect(() => {
+    if (isHost && isMoviePlaying && screenVideoTrack && mainVideoContainerRef.current) {
+      console.log('🎯 HOST: Playing screen share in main window');
+      screenVideoTrack.play(mainVideoContainerRef.current);
+      
+      return () => {
+        // Cleanup when component unmounts or track changes
+        if (screenVideoTrack) {
+          screenVideoTrack.stop();
+        }
+      };
+    }
+  }, [isHost, isMoviePlaying, screenVideoTrack]);
+
+  // Handle remote host screen share for PARTICIPANTS
+  useEffect(() => {
+    if (!isHost && isMoviePlaying && hostScreenUser && hostScreenUser.videoTrack && hostScreenContainerRef.current) {
+      console.log('🎯 PARTICIPANT: Playing remote screen share in main window');
+      hostScreenUser.videoTrack.play(hostScreenContainerRef.current);
+    }
+  }, [isHost, isMoviePlaying, hostScreenUser]);
+
+  // Handle camera track playback
+  useEffect(() => {
+    if (isHost && selfViewTrack) {
+      if (isMoviePlaying) {
+        // During screen share: stop camera in main window (screen takes over)
+        selfViewTrack.stop();
       } else {
-        // Participants see host's screen share with camera if available
-        return (
-          <div className="relative w-full h-full bg-black">
-            {hostScreenTrack ? (
-              <video 
-                ref={(el) => {
-                  if (el && hostScreenTrack) {
-                    hostScreenTrack.play(el);
-                  }
-                }}
-                style={{ width: '100%', height: '100%', objectFit: 'contain' }}
-              />
-            ) : hostUser && hostUser.videoTrack ? (
-              // Fallback to host's camera
+        // Normal mode: camera in main window
+        if (mainVideoContainerRef.current) {
+          selfViewTrack.play(mainVideoContainerRef.current);
+        }
+      }
+    }
+  }, [isHost, selfViewTrack, isMoviePlaying]);
+
+  // FIXED: Main view shows ACTUAL screen share content
+  const renderMainView = () => {
+    return (
+      <div className="relative w-full h-full bg-black">
+        {/* MAIN CONTENT AREA - Shows ACTUAL SCREEN SHARE when active */}
+        {isMoviePlaying ? (
+          // SCREEN SHARE in MAIN AREA - ACTUAL CONTENT
+          isHost ? (
+            // Host's own screen share - ACTUAL SCREEN CONTENT
+            <div className="w-full h-full" ref={mainVideoContainerRef}>
+              {/* Screen content will appear here via screenVideoTrack */}
+              {!screenVideoTrack && (
+                <div className="w-full h-full flex items-center justify-center bg-gray-900">
+                  <div className="text-white text-center">
+                    <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-white mx-auto mb-4"></div>
+                    <div className="text-xl font-semibold mb-2">Starting Screen Share...</div>
+                    <div className="text-gray-400">Your screen will appear here momentarily</div>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            // Participant view: Host's ACTUAL screen share in main area
+            <div className="w-full h-full" ref={hostScreenContainerRef}>
+              {!hostScreenUser && (
+                <div className="w-full h-full flex items-center justify-center bg-gray-900">
+                  <div className="text-white text-center">
+                    <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-white mx-auto mb-4"></div>
+                    <div className="text-xl font-semibold mb-2">Connecting to Screen Share...</div>
+                    <div className="text-gray-400">Host's screen will appear here</div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )
+        ) : (
+          // NORMAL MODE - Camera in MAIN AREA
+          isHost ? (
+            // Host view: Camera in main area
+            <div className="w-full h-full" ref={mainVideoContainerRef}>
+              {!cameraOn && (
+                <div className="w-full h-full flex items-center justify-center bg-gray-900">
+                  <div className="text-center text-gray-400">
+                    <VideoCameraSlashIcon className="w-16 h-16 mx-auto mb-4" />
+                    <div className="text-xl font-semibold mb-2">Camera Off</div>
+                    <div>Click "Start Stream" to share your screen</div>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            // Participant view: Host camera in main area
+            hostCameraUser ? (
               <RemoteUser 
-                user={hostUser} 
+                user={hostCameraUser} 
                 playVideo={true} 
                 playAudio={true} 
                 style={{ width: '100%', height: '100%', objectFit: 'contain' }} 
               />
             ) : (
-              <div className="text-white text-center flex items-center justify-center h-full">
-                <div className="text-lg mb-2">Waiting for host's stream...</div>
+              <div className="w-full h-full flex items-center justify-center bg-gray-900">
+                <div className="text-center text-gray-400">
+                  <UsersIcon className="w-16 h-16 mx-auto mb-4" />
+                  <div className="text-xl font-semibold mb-2">Waiting for Host</div>
+                  <div>The host will start the stream soon</div>
+                </div>
               </div>
-            )}
+            )
+          )
+        )}
+
+        {/* Connection Error Overlay */}
+        {connectionError && (
+          <div className="absolute top-4 left-4 right-4 bg-red-600 text-white p-4 rounded-lg shadow-lg z-20">
+            <div className="font-bold">Connection Error</div>
+            <div className="text-sm">{connectionError}</div>
+            <button 
+              onClick={handleLeave}
+              className="mt-2 bg-white text-red-600 py-1 px-3 rounded text-sm font-semibold hover:bg-gray-100"
+            >
+              Leave Room
+            </button>
           </div>
-        );
-      }
-    }
-    
-    // Default view when no screen sharing
-    if (isHost) {
-      return (
-        <div className="relative w-full h-full bg-black">
-          {cameraOn && selfViewTrack ? (
-            <LocalVideoTrack 
-              track={selfViewTrack} 
-              play={true} 
-              style={{ width: '100%', height: '100%', objectFit: 'contain' }} 
-            />
-          ) : (
-            <div className="text-center text-gray-400 p-4 flex items-center justify-center h-full">
-              Click "Start Stream" to share your screen.
-            </div>
-          )}
-        </div>
-      );
-    } else {
-      return hostUser ? (
-        <div className="relative w-full h-full bg-black">
-          <RemoteUser 
-            user={hostUser} 
-            playVideo={true} 
-            playAudio={true} 
-            style={{ width: '100%', height: '100%', objectFit: 'contain' }} 
-          />
-        </div>
-      ) : (
-        <div className="text-center text-gray-400 p-4 flex items-center justify-center h-full">
-          Waiting for the host to start the stream...
-        </div>
-      );
-    }
+        )}
+      </div>
+    );
   };
 
   return (
     <div className="flex flex-col md:flex-row h-screen">
+      {/* MAIN AREA - Shows ACTUAL SCREEN SHARE CONTENT (big window) */}
       <main className="flex-1 bg-black flex items-center justify-center relative">
         {renderMainView()}
       </main>
       
-      <aside className="w-full md:max-w-sm bg-gray-900/80 backdrop-blur-lg p-4 flex flex-col space-y-4 overflow-y-auto">
+      {/* SIDEBAR - Shows ALL FACE CAMS including host (small windows) */}
+      <aside className="w-full md:max-w-sm bg-gray-900/95 backdrop-blur-lg p-4 flex flex-col space-y-4 overflow-y-auto border-l border-gray-700">
         <div className="text-center">
           <h2 className="text-white text-xl font-bold">Room Code</h2>
           <div className="text-gray-400 text-lg font-mono tracking-widest flex items-center justify-center gap-2 cursor-pointer hover:text-white p-2 bg-black/20 rounded-lg" onClick={handleCopyRoomId}>
@@ -170,20 +216,17 @@ const StreamRoomLayout = ({
           <UsersIcon /> Participants ({totalParticipants})
         </h3>
 
-        {/* Self view */}
-        <div className="relative rounded-lg overflow-hidden bg-black shrink-0">
-          {cameraOn && selfViewTrack && !isMoviePlaying ? (
-            <LocalVideoTrack track={selfViewTrack} play={true} style={{ width: '100%', aspectRatio: '16/9', objectFit: 'cover' }} />
-          ) : isMoviePlaying ? (
-            <div style={{ width: '100%', aspectRatio: '16/9' }} className="flex items-center justify-center bg-gray-800 text-white">
-              <div className="text-center">
-                <VideoCameraIcon className="w-8 h-8 mx-auto mb-2" />
-                <div className="text-sm">Screen Sharing Active</div>
-              </div>
-            </div>
+        {/* Host face cam - ALWAYS in sidebar with other participants */}
+        <div className="relative rounded-lg overflow-hidden bg-black shrink-0 border-2 border-blue-500">
+          {cameraOn && selfViewTrack ? (
+            <LocalVideoTrack 
+              track={selfViewTrack} 
+              play={true} 
+              style={{ width: '100%', aspectRatio: '16/9', objectFit: 'cover' }} 
+            />
           ) : (
-            <div style={{ width: '100%', aspectRatio: '16/9' }} className="flex items-center justify-center bg-gray-800 text-white text-4xl">
-              <VideoCameraSlashIcon />
+            <div style={{ width: '100%', aspectRatio: '16/9' }} className="flex items-center justify-center bg-gray-800 text-white">
+              <VideoCameraSlashIcon className="w-12 h-12 text-gray-600" />
             </div>
           )}
           <div className="absolute top-0 left-0 p-2 flex items-center gap-1">
@@ -194,14 +237,14 @@ const StreamRoomLayout = ({
           </div>
           <div className="absolute bottom-0 right-0 p-2 flex items-center gap-2">
             <button 
-              disabled={!isConnected || isMoviePlaying} 
+              disabled={!isConnected} 
               onClick={toggleMic} 
               className={`p-2 rounded-full text-white transition-colors disabled:opacity-50 ${micOn ? 'bg-black/50 hover:bg-white/20' : 'bg-red-600'}`}
             >
               {micOn ? <MicrophoneIcon /> : <MicrophoneSlashIcon />}
             </button>
             <button 
-              disabled={!isConnected || isMoviePlaying} 
+              disabled={!isConnected} 
               onClick={toggleCamera} 
               className={`p-2 rounded-full text-white transition-colors disabled:opacity-50 ${cameraOn ? 'bg-black/50 hover:bg-white/20' : 'bg-red-600'}`}
             >
@@ -210,22 +253,27 @@ const StreamRoomLayout = ({
           </div>
         </div>
 
-        {/* Remote users */}
+        {/* Other participants face cams */}
         {remoteUsers.map(remoteUser => {
-          const isRemoteHost = remoteUser.uid.toString() === (hostUid || '').toString();
+          const isScreenClient = remoteUser.uid.toString().endsWith('-screen');
+          const isCameraClient = remoteUser.uid.toString() === (hostUid || '').toString();
+          
+          // Don't show screen client in sidebar - screen share is in main area
+          if (isScreenClient) return null;
+          
           return (
-            <div key={remoteUser.uid} className="relative rounded-lg overflow-hidden shrink-0">
+            <div key={remoteUser.uid} className="relative rounded-lg overflow-hidden shrink-0 border border-gray-600">
               <RemoteUser 
                 user={remoteUser} 
                 playVideo={true} 
-                playAudio={true} 
+                playAudio={true}
                 style={{ width: '100%', aspectRatio: '16/9', objectFit: 'cover' }} 
               />
               <div className="absolute top-0 left-0 p-2 flex items-center gap-1">
                 <span className="bg-black/60 text-white text-xs px-2 py-1 rounded">
                   User {remoteUser.uid}
                 </span>
-                {isRemoteHost && <span className="bg-blue-600 text-white text-xs px-2 py-1 rounded font-semibold">HOST</span>}
+                {isCameraClient && <span className="bg-blue-600 text-white text-xs px-2 py-1 rounded font-semibold">HOST</span>}
               </div>
             </div>
           );
@@ -233,36 +281,39 @@ const StreamRoomLayout = ({
         
         <div className="flex-grow"></div>
         
-        <div className="mt-auto shrink-0">
+        <div className="mt-auto shrink-0 space-y-4">
           {isHost && (
-            <div className="mb-4">
+            <div className="space-y-2">
               {!isMoviePlaying ? (
                 <button 
                   onClick={handleStartStream} 
-                  className={`w-full flex items-center justify-center gap-2 text-white py-2 px-4 rounded-full font-semibold transition-colors ${isConnected && dataStreamReady ? 'bg-blue-600 hover:bg-blue-700 cursor-pointer' : 'bg-gray-500 cursor-not-allowed'}`} 
+                  className={`w-full flex items-center justify-center gap-3 text-white py-3 px-6 rounded-xl font-semibold transition-all ${isConnected && dataStreamReady ? 'bg-blue-600 hover:bg-blue-700 cursor-pointer shadow-lg' : 'bg-gray-600 cursor-not-allowed'}`} 
                   disabled={!isConnected || !dataStreamReady}
                 >
-                  <VideoCameraIcon /> Start Screen Share
+                  <VideoCameraIcon className="w-5 h-5" /> 
+                  Start Screen Share
                 </button>
               ) : (
                 <button 
                   onClick={handleStopMovie} 
-                  className={`w-full flex items-center justify-center gap-2 text-white py-2 px-4 rounded-full font-semibold transition-colors ${isConnected ? 'bg-yellow-600 hover:bg-yellow-700' : 'bg-gray-500'}`} 
+                  className={`w-full flex items-center justify-center gap-3 text-white py-3 px-6 rounded-xl font-semibold transition-all ${isConnected ? 'bg-yellow-600 hover:bg-yellow-700 shadow-lg' : 'bg-gray-600'}`} 
                   disabled={!isConnected}
                 >
-                  <StopIcon /> Stop Screen Share
+                  <StopIcon className="w-5 h-5" /> 
+                  Stop Screen Share
                 </button>
               )}
             </div>
           )}
           
-          <div className="flex items-center justify-center gap-4">
+          <div className="flex items-center justify-center gap-4 p-2 bg-black/30 rounded-xl">
             <ThemeToggle theme={theme} toggleTheme={toggleTheme} className="!bg-white/10 !border-white/20 !text-white" />
             <button 
               onClick={handleLeave} 
-              className="flex-1 flex items-center justify-center gap-2 bg-red-600 text-white py-2 px-4 rounded-full font-semibold hover:bg-red-700"
+              className="flex-1 flex items-center justify-center gap-3 bg-red-600 text-white py-3 px-6 rounded-xl font-semibold hover:bg-red-700 shadow-lg transition-all"
             >
-              <LogoutIcon /> Leave
+              <LogoutIcon className="w-5 h-5" /> 
+              Leave Room
             </button>
           </div>
         </div>
@@ -271,9 +322,11 @@ const StreamRoomLayout = ({
   );
 };
 
-// Enhanced StreamRoomPage with Single Client Solution
-const StreamRoomPage = ({ isHost, roomId, token, user, onLeaveRoom, theme, toggleTheme, appId }) => {
-  const agoraClient = useRTCClient();
+// Enhanced StreamRoomPage with Dual-Client Solution and Token Handling
+const StreamRoomPage = ({ isHost, roomId, token, user, onLeaveRoom, theme, toggleTheme, appId, onTokenError, fetchAgoraToken }) => {
+  const agoraClient = useRTCClient(); // Main client for camera and mic
+  const [screenClient, setScreenClient] = useState(null); // Second client for screen sharing
+  
   const connectionState = useConnectionState();
   const remoteUsers = useRemoteUsers();
   const { audioTracks } = useRemoteAudioTracks(remoteUsers);
@@ -281,11 +334,14 @@ const StreamRoomPage = ({ isHost, roomId, token, user, onLeaveRoom, theme, toggl
   const [micOn, setMicOn] = useState(false);
   const [cameraOn, setCameraOn] = useState(false);
   const [isMoviePlaying, setIsMoviePlaying] = useState(false);
-  const [mainViewTrack, setMainViewTrack] = useState(null);
   const [selfViewTrack, setSelfViewTrack] = useState(null);
   const [dataStreamReady, setDataStreamReady] = useState(false);
   const [isStartingStream, setIsStartingStream] = useState(false);
-  const [hostScreenTrack, setHostScreenTrack] = useState(null);
+  const [hostScreenUser, setHostScreenUser] = useState(null);
+  const [hostCameraUser, setHostCameraUser] = useState(null);
+  const [connectionError, setConnectionError] = useState(null);
+  const [joinAttempts, setJoinAttempts] = useState(0);
+  const [screenVideoTrack, setScreenVideoTrack] = useState(null); // Add state for screen track
 
   const localMicrophoneTrackRef = useRef(null);
   const localCameraTrackRef = useRef(null);
@@ -295,71 +351,82 @@ const StreamRoomPage = ({ isHost, roomId, token, user, onLeaveRoom, theme, toggl
   
   const initializationRef = useRef({
     hasJoined: false,
-    isInitializing: false
+    isInitializing: false,
+    screenClientJoined: false
   });
 
-  // Track subscription state
-  const [subscribedTracks, setSubscribedTracks] = useState(new Map());
+  // Token validation function
+  const validateToken = useCallback((token, appId, channelName, uid) => {
+    if (!token) {
+      console.error('❌ Token is null or undefined');
+      return false;
+    }
+    
+    if (typeof token !== 'string') {
+      console.error('❌ Token is not a string:', typeof token);
+      return false;
+    }
+    
+    if (token.length < 10) {
+      console.error('❌ Token appears too short:', token.length);
+      return false;
+    }
+    
+    console.log('✅ Token validation passed:', {
+      tokenLength: token.length,
+      tokenPreview: token.substring(0, 20) + '...',
+      appId: appId,
+      channelName: channelName,
+      uid: uid
+    });
+    
+    return true;
+  }, []);
 
-  // Enhanced track subscription handler
+  // Create screen client
+  useEffect(() => {
+    if (isHost && !screenClient) {
+      const newScreenClient = AgoraRTC.createClient({ 
+        codec: "vp8", 
+        mode: "rtc",
+      });
+      setScreenClient(newScreenClient);
+    }
+  }, [isHost, screenClient]);
+
+  // Enhanced track subscription handler for dual-client approach
   const handleUserPublished = useCallback(async (user, mediaType) => {
-    console.log('User published:', user.uid, mediaType);
+    console.log('User published:', user.uid, mediaType, 'from client:', user.uid.toString().endsWith('-screen') ? 'screen' : 'main');
     
     try {
       await agoraClient.subscribe(user, mediaType);
       console.log('Subscribed to:', user.uid, mediaType);
       
-      setSubscribedTracks(prev => {
-        const newMap = new Map(prev);
-        const userTracks = newMap.get(user.uid) || new Set();
-        userTracks.add(mediaType);
-        newMap.set(user.uid, userTracks);
-        return newMap;
-      });
-
-      // Handle screen track detection for participants
-      if (mediaType === 'video' && user.hasVideo && !isHost) {
-        const videoTrack = user.videoTrack;
-        if (videoTrack) {
-          const trackLabel = videoTrack.getTrackLabel();
-          console.log('Track label:', trackLabel);
-          
-          // Detect screen track
-          if (trackLabel.includes('screen') || trackLabel.includes('Screen')) {
-            setHostScreenTrack(videoTrack);
-            setIsMoviePlaying(true);
-            console.log('Screen track detected and set');
-          }
-        }
+      // Identify host users
+      const isScreenClient = user.uid.toString().endsWith('-screen');
+      const isCameraClient = user.uid.toString() === (user.uid || '').toString();
+      
+      if (isScreenClient) {
+        setHostScreenUser(user);
+        setIsMoviePlaying(true);
+      } else if (isCameraClient) {
+        setHostCameraUser(user);
       }
     } catch (error) {
       console.error('Failed to subscribe:', error);
     }
-  }, [agoraClient, isHost]);
+  }, [agoraClient]);
 
   // Handle user unpublishing
   const handleUserUnpublished = useCallback((user, mediaType) => {
     console.log('User unpublished:', user.uid, mediaType);
     
-    setSubscribedTracks(prev => {
-      const newMap = new Map(prev);
-      const userTracks = newMap.get(user.uid);
-      if (userTracks) {
-        userTracks.delete(mediaType);
-        if (userTracks.size === 0) {
-          newMap.delete(user.uid);
-        } else {
-          newMap.set(user.uid, userTracks);
-        }
-      }
-      return newMap;
-    });
-
-    if (mediaType === 'video' && !isHost) {
-      setHostScreenTrack(null);
+    const isScreenClient = user.uid.toString().endsWith('-screen');
+    if (isScreenClient && mediaType === 'video') {
+      setHostScreenUser(null);
       setIsMoviePlaying(false);
     }
-  }, [isHost]);
+  }, []);
 
   // Handle user joining
   const handleUserJoined = useCallback((user) => {
@@ -369,12 +436,51 @@ const StreamRoomPage = ({ isHost, roomId, token, user, onLeaveRoom, theme, toggl
   // Handle user leaving
   const handleUserLeft = useCallback((user) => {
     console.log('User left:', user.uid);
-    setSubscribedTracks(prev => {
-      const newMap = new Map(prev);
-      newMap.delete(user.uid);
-      return newMap;
-    });
+    
+    const isScreenClient = user.uid.toString().endsWith('-screen');
+    if (isScreenClient) {
+      setHostScreenUser(null);
+      setIsMoviePlaying(false);
+    }
   }, []);
+
+  // Token renewal handlers
+  const handleTokenPrivilegeWillExpire = useCallback(async () => {
+    console.log('🔑 Token will expire soon, renewing...');
+    try {
+      if (fetchAgoraToken) {
+        const newToken = await fetchAgoraToken(roomId);
+        if (newToken && validateToken(newToken, appId, roomId, user.uid)) {
+          await agoraClient.renewToken(newToken);
+          console.log('✅ Token renewed successfully');
+        } else {
+          console.error('❌ Failed to get valid token for renewal');
+        }
+      }
+    } catch (error) {
+      console.error('❌ Failed to renew token:', error);
+      if (onTokenError) onTokenError('Token renewal failed: ' + error.message);
+    }
+  }, [agoraClient, roomId, appId, user.uid, fetchAgoraToken, onTokenError, validateToken]);
+
+  const handleTokenPrivilegeDidExpire = useCallback(async () => {
+    console.log('🔑 Token expired, attempting to renew...');
+    try {
+      if (fetchAgoraToken) {
+        const newToken = await fetchAgoraToken(roomId);
+        if (newToken && validateToken(newToken, appId, roomId, user.uid)) {
+          await agoraClient.renewToken(newToken);
+          console.log('✅ Token renewed after expiration');
+        } else {
+          console.error('❌ Failed to get valid token after expiration');
+          setConnectionError('Token expired. Please rejoin the room.');
+        }
+      }
+    } catch (error) {
+      console.error('❌ Failed to renew expired token:', error);
+      setConnectionError('Connection lost due to token expiration.');
+    }
+  }, [agoraClient, roomId, appId, user.uid, fetchAgoraToken, validateToken]);
 
   // Send stream message
   const sendStreamMessage = useCallback(async (message) => {
@@ -411,24 +517,14 @@ const StreamRoomPage = ({ isHost, roomId, token, user, onLeaveRoom, theme, toggl
 
   // Stop screen sharing
   const handleStopMovie = useCallback(async () => {
-    if (!isHost) return;
+    if (!isHost || !screenClient) return;
 
     try {
       console.log('Stopping screen share...');
 
-      // Unpublish screen tracks
-      const tracksToUnpublish = [];
-      
-      if (screenVideoTrackRef.current) {
-        tracksToUnpublish.push(screenVideoTrackRef.current);
-      }
-      
-      if (screenAudioTrackRef.current) {
-        tracksToUnpublish.push(screenAudioTrackRef.current);
-      }
-
-      if (tracksToUnpublish.length > 0) {
-        await agoraClient.unpublish(tracksToUnpublish);
+      // Leave screen client channel
+      if (screenClient.connectionState === 'CONNECTED') {
+        await screenClient.leave();
       }
 
       // Stop and close screen tracks
@@ -444,15 +540,11 @@ const StreamRoomPage = ({ isHost, roomId, token, user, onLeaveRoom, theme, toggl
         screenAudioTrackRef.current = null;
       }
 
-      // Republish camera if it was enabled
-      if (cameraOn && localCameraTrackRef.current) {
-        await agoraClient.publish([localCameraTrackRef.current]);
-      }
-
       // Update state
-      setMainViewTrack(null);
-      setHostScreenTrack(null);
+      setScreenVideoTrack(null); // Reset the screen track
       setIsMoviePlaying(false);
+      setHostScreenUser(null);
+      initializationRef.current.screenClientJoined = false;
       
       // Notify participants
       try {
@@ -466,54 +558,66 @@ const StreamRoomPage = ({ isHost, roomId, token, user, onLeaveRoom, theme, toggl
       // Force cleanup
       screenVideoTrackRef.current = null;
       screenAudioTrackRef.current = null;
-      setMainViewTrack(null);
-      setHostScreenTrack(null);
+      setScreenVideoTrack(null);
       setIsMoviePlaying(false);
+      setHostScreenUser(null);
     }
-  }, [isHost, agoraClient, sendStreamMessage, cameraOn]);
+  }, [isHost, screenClient, sendStreamMessage]);
 
-  // Create screen track
+  // Create screen track with system audio support
   const createScreenTrack = useCallback(async () => {
-    console.log('Creating screen track');
+    console.log('Creating screen track with dual-client approach');
 
     try {
-      const screenTrack = await AgoraRTC.createScreenVideoTrack({
-        encoderConfig: {
-          width: 1920,
-          height: 1080,
-          frameRate: 15,
-          bitrateMin: 1500,
-          bitrateMax: 3000,
-        },
-        optimizationMode: "detail",
-      }, "enable");
-
-      return screenTrack;
-    } catch (error) {
-      console.log('Method 1 failed, trying simpler configuration:', error);
-      
+      // Try with system audio first
       try {
         const screenTrack = await AgoraRTC.createScreenVideoTrack({
           encoderConfig: "1080p_1",
+          withAudio: true, // Try to capture system audio
         }, "enable");
-        
+
+        console.log('Screen track with audio created successfully');
         return screenTrack;
-      } catch (minimalError) {
-        console.log('Method 2 failed, trying basic configuration:', minimalError);
+      } catch (audioError) {
+        console.log('System audio not available, creating screen track without audio:', audioError);
         
-        const screenTrack = await AgoraRTC.createScreenVideoTrack({}, "disable");
+        // Fallback without system audio
+        const screenTrack = await AgoraRTC.createScreenVideoTrack({
+          encoderConfig: "1080p_1",
+        }, "disable");
+        
         return screenTrack;
       }
+    } catch (error) {
+      console.log('All screen track methods failed, trying basic configuration:', error);
+      
+      // Final fallback
+      const screenTrack = await AgoraRTC.createScreenVideoTrack({}, "disable");
+      return screenTrack;
     }
   }, []);
 
-  // Start screen share (replace camera with screen)
+  // Start screen share using second client
   const handleStartStream = useCallback(async () => {
-    if (!isHost || isMoviePlaying || isStartingStream) return;
+    if (!isHost || isMoviePlaying || isStartingStream || !screenClient) return;
 
     try {
       setIsStartingStream(true);
-      console.log('Starting screen share...');
+      console.log('Starting screen share with dual-client approach...');
+
+      // Get token for screen client
+      let screenToken = token;
+      if (fetchAgoraToken) {
+        screenToken = await fetchAgoraToken(roomId);
+        if (!screenToken) {
+          throw new Error('Failed to get token for screen client');
+        }
+      }
+
+      // Validate screen token
+      if (!validateToken(screenToken, appId, roomId, `${user.uid}-screen`)) {
+        throw new Error('Invalid token for screen client');
+      }
 
       // Create screen track
       const screenTrack = await createScreenTrack();
@@ -526,21 +630,36 @@ const StreamRoomPage = ({ isHost, roomId, token, user, onLeaveRoom, theme, toggl
         videoTrack = screenTrack;
       }
 
-      console.log('Screen track created, replacing camera with screen...');
+      console.log('Screen track created, joining with screen client...');
 
-      // Unpublish camera first (browser limitation: one video track per client)
-      if (localCameraTrackRef.current) {
-        await agoraClient.unpublish([localCameraTrackRef.current]);
-      }
-
+      // Generate unique UID for screen client
+      const screenUid = `${user.uid}-screen`;
+      
+      // Join channel with screen client
+      console.log('🖥️ Screen client joining with:', {
+        appId: appId,
+        channel: roomId,
+        uid: screenUid,
+        tokenPreview: screenToken.substring(0, 20) + '...'
+      });
+      
+      await screenClient.join(appId, roomId, screenToken, screenUid);
+      
       // Publish screen tracks
       const tracksToPublish = [videoTrack];
       if (audioTrack) {
         tracksToPublish.push(audioTrack);
       }
 
-      await agoraClient.publish(tracksToPublish);
-      console.log('Screen tracks published successfully');
+      await screenClient.publish(tracksToPublish);
+      console.log('✅ Screen client joined and published successfully');
+
+      // Store references
+      screenVideoTrackRef.current = videoTrack;
+      setScreenVideoTrack(videoTrack); // Set the actual track for the layout
+      if (audioTrack) {
+        screenAudioTrackRef.current = audioTrack;
+      }
 
       // Handle screen share ending
       videoTrack.on("track-ended", () => {
@@ -548,21 +667,15 @@ const StreamRoomPage = ({ isHost, roomId, token, user, onLeaveRoom, theme, toggl
         handleStopMovie();
       });
 
-      // Store references
-      screenVideoTrackRef.current = videoTrack;
-      if (audioTrack) {
-        screenAudioTrackRef.current = audioTrack;
-      }
-
       // Update state
-      setMainViewTrack(videoTrack);
-      setHostScreenTrack(videoTrack);
       setIsMoviePlaying(true);
+      initializationRef.current.screenClientJoined = true;
       
       // Notify participants
       try {
         await sendStreamMessage({ 
-          type: 'MOVIE_START'
+          type: 'MOVIE_START',
+          screenUid: screenUid
         });
         console.log('Movie start message sent');
       } catch (msgError) {
@@ -570,29 +683,26 @@ const StreamRoomPage = ({ isHost, roomId, token, user, onLeaveRoom, theme, toggl
       }
       
     } catch (error) {
-      console.error("Error starting screen share:", error);
+      console.error("❌ Error starting screen share:", error);
       setIsMoviePlaying(false);
-      
-      // Republish camera if screen share failed
-      if (cameraOn && localCameraTrackRef.current) {
-        try {
-          await agoraClient.publish([localCameraTrackRef.current]);
-        } catch (publishError) {
-          console.error("Failed to republish camera:", publishError);
-        }
-      }
+      setScreenVideoTrack(null); // Reset on error
       
       if (error.name === 'NotAllowedError') {
         alert("Screen sharing permission denied. Please allow screen sharing and try again.");
+      } else if (error.name === 'NOT_SUPPORTED') {
+        alert("System audio capture is not supported in this browser. Screen sharing will continue without system audio.");
+      } else if (error.message.includes('token') || error.message.includes('auth')) {
+        alert("Token authentication failed for screen sharing. Please try again.");
+        console.error('🔑 Screen client token error:', error);
       } else {
         alert(`Failed to start screen sharing: ${error.message || 'Unknown error'}. Please try again.`);
       }
     } finally {
       setIsStartingStream(false);
     }
-  }, [isHost, isMoviePlaying, isStartingStream, agoraClient, sendStreamMessage, handleStopMovie, createScreenTrack, cameraOn]);
+  }, [isHost, isMoviePlaying, isStartingStream, screenClient, user.uid, appId, roomId, token, createScreenTrack, handleStopMovie, sendStreamMessage, fetchAgoraToken, validateToken]);
 
-  // Main client initialization
+  // Main client initialization with enhanced token validation
   useEffect(() => {
     const shouldInitialize = 
       agoraClient && 
@@ -607,15 +717,37 @@ const StreamRoomPage = ({ isHost, roomId, token, user, onLeaveRoom, theme, toggl
     const initializeAndJoin = async () => {
       try {
         initializationRef.current.isInitializing = true;
-        console.log('Initializing Agora connection...');
+        console.log('🚀 Initializing main Agora client...');
+        setConnectionError(null);
+
+        // Validate token before attempting to join
+        if (!validateToken(token, appId, roomId, user.uid)) {
+          throw new Error('Invalid token provided');
+        }
 
         // Set up event listeners
         agoraClient.on('user-published', handleUserPublished);
         agoraClient.on('user-unpublished', handleUserUnpublished);
         agoraClient.on('user-joined', handleUserJoined);
         agoraClient.on('user-left', handleUserLeft);
+        agoraClient.on('token-privilege-will-expire', handleTokenPrivilegeWillExpire);
+        agoraClient.on('token-privilege-did-expire', handleTokenPrivilegeDidExpire);
+        agoraClient.on('connection-state-change', (state) => {
+          console.log('🔌 Connection state changed:', state);
+          if (state === 'DISCONNECTED' || state === 'FAILED') {
+            setConnectionError('Connection lost. Please try rejoining.');
+          }
+        });
 
+        console.log('🔑 Joining channel with:', { 
+          appId: appId, 
+          channel: roomId, 
+          uid: user.uid,
+          tokenPreview: token.substring(0, 20) + '...'
+        });
+        
         await agoraClient.join(appId, roomId, token, user.uid);
+        console.log('✅ Successfully joined channel');
 
         // Create camera and microphone tracks
         const [micTrack, camTrack] = await AgoraRTC.createMicrophoneAndCameraTracks(
@@ -635,12 +767,31 @@ const StreamRoomPage = ({ isHost, roomId, token, user, onLeaveRoom, theme, toggl
         setMicOn(true);
         setCameraOn(true);
         
-        console.log('Client joined successfully');
+        console.log('✅ Main client joined and published successfully');
         setDataStreamReady(true);
         initializationRef.current.hasJoined = true;
         
       } catch (error) {
-        console.error("Failed to initialize and join:", error);
+        console.error("❌ Failed to initialize and join:", error);
+        const errorMsg = error.message || 'Unknown connection error';
+        setConnectionError(`Failed to join room: ${errorMsg}`);
+        
+        // Specific error handling for token issues
+        if (error.message.includes('token') || error.message.includes('auth') || error.message.includes('gateway')) {
+          console.error('🔑 TOKEN ERROR DETAILS:', {
+            tokenLength: token?.length,
+            appId: appId,
+            channel: roomId,
+            uid: user.uid,
+            error: error.message
+          });
+          
+          if (onTokenError) {
+            onTokenError(`Token authentication failed: ${errorMsg}`);
+          }
+        }
+        
+        setJoinAttempts(prev => prev + 1);
       } finally {
         initializationRef.current.isInitializing = false;
       }
@@ -655,9 +806,27 @@ const StreamRoomPage = ({ isHost, roomId, token, user, onLeaveRoom, theme, toggl
         agoraClient.off('user-unpublished', handleUserUnpublished);
         agoraClient.off('user-joined', handleUserJoined);
         agoraClient.off('user-left', handleUserLeft);
+        agoraClient.off('token-privilege-will-expire', handleTokenPrivilegeWillExpire);
+        agoraClient.off('token-privilege-did-expire', handleTokenPrivilegeDidExpire);
+        agoraClient.off('connection-state-change');
       }
     };
-  }, [agoraClient, appId, roomId, token, user.uid, handleUserPublished, handleUserUnpublished, handleUserJoined, handleUserLeft]);
+  }, [
+    agoraClient, 
+    appId, 
+    roomId, 
+    token, 
+    user.uid, 
+    handleUserPublished, 
+    handleUserUnpublished, 
+    handleUserJoined, 
+    handleUserLeft,
+    handleTokenPrivilegeWillExpire,
+    handleTokenPrivilegeDidExpire,
+    onTokenError,
+    validateToken,
+    joinAttempts
+  ]);
 
   // Create data stream when connected
   useEffect(() => {
@@ -678,16 +847,20 @@ const StreamRoomPage = ({ isHost, roomId, token, user, onLeaveRoom, theme, toggl
     }
   }, [connectionState, agoraClient]);
 
-  // Play remote audio tracks
+  // Play remote audio tracks (skip screen client audio to avoid echo)
   useEffect(() => {
     audioTracks.forEach(track => {
       try {
-        track.play();
+        // Don't play audio from screen client if it also has microphone
+        const user = remoteUsers.find(u => u.audioTrack === track);
+        if (user && !user.uid.toString().endsWith('-screen')) {
+          track.play();
+        }
       } catch (error) {
         console.error("Error playing audio track:", error);
       }
     });
-  }, [audioTracks]);
+  }, [audioTracks, remoteUsers]);
 
   // Handle stream messages
   useEffect(() => {
@@ -705,7 +878,7 @@ const StreamRoomPage = ({ isHost, roomId, token, user, onLeaveRoom, theme, toggl
           console.log('Screen share started by host');
         } else if (message.type === 'MOVIE_STOP') {
           setIsMoviePlaying(false);
-          setHostScreenTrack(null);
+          setHostScreenUser(null);
           console.log('Screen share stopped by host');
         }
       } catch (error) {
@@ -720,9 +893,9 @@ const StreamRoomPage = ({ isHost, roomId, token, user, onLeaveRoom, theme, toggl
     };
   }, [agoraClient, user.uid]);
 
-  // Toggle camera (disabled during screen share)
+  // Toggle camera
   const toggleCamera = useCallback(async () => {
-    if (!localCameraTrackRef.current || isMoviePlaying) return;
+    if (!localCameraTrackRef.current) return;
 
     try {
       const newState = !cameraOn;
@@ -731,9 +904,9 @@ const StreamRoomPage = ({ isHost, roomId, token, user, onLeaveRoom, theme, toggl
     } catch (error) {
       console.error("Error toggling camera:", error);
     }
-  }, [cameraOn, isMoviePlaying]);
+  }, [cameraOn]);
 
-  // Toggle microphone (works during screen share)
+  // Toggle microphone
   const toggleMic = useCallback(async () => {
     if (!localMicrophoneTrackRef.current) return;
 
@@ -749,6 +922,8 @@ const StreamRoomPage = ({ isHost, roomId, token, user, onLeaveRoom, theme, toggl
   // Leave room with cleanup
   const handleLeave = useCallback(async () => {
     try {
+      console.log('Leaving room and cleaning up...');
+
       // Stop and close all tracks
       if (screenVideoTrackRef.current) {
         screenVideoTrackRef.current.stop();
@@ -770,32 +945,70 @@ const StreamRoomPage = ({ isHost, roomId, token, user, onLeaveRoom, theme, toggl
         localCameraTrackRef.current.close();
       }
 
-      // Leave channel
-      if (agoraClient.connectionState === 'CONNECTED') {
+      // Leave channels
+      if (agoraClient && agoraClient.connectionState === 'CONNECTED') {
         await agoraClient.leave();
+      }
+      
+      if (screenClient && screenClient.connectionState === 'CONNECTED') {
+        await screenClient.leave();
       }
 
       // Reset state
+      setScreenVideoTrack(null);
       setDataStreamReady(false);
       dataStreamRef.current = null;
       initializationRef.current.hasJoined = false;
       initializationRef.current.isInitializing = false;
+      initializationRef.current.screenClientJoined = false;
       
     } catch (error) {
       console.error("Error during leave:", error);
     } finally {
       onLeaveRoom();
     }
-  }, [agoraClient, onLeaveRoom]);
+  }, [agoraClient, screenClient, onLeaveRoom]);
 
-  console.log('Connection state:', connectionState);
+  // Show connection error
+  if (connectionError && connectionState === 'DISCONNECTED') {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center text-white">
+        <div className="text-center max-w-md p-6">
+          <div className="text-red-500 text-xl mb-4">Connection Failed</div>
+          <div className="mb-4 bg-gray-800 p-4 rounded text-left">
+            <div className="text-sm font-mono break-all">{connectionError}</div>
+          </div>
+          <div className="mb-4 text-gray-400 text-sm">
+            This is often caused by an invalid or expired token.
+          </div>
+          <div className="flex gap-4 justify-center">
+            <button 
+              onClick={handleLeave}
+              className="bg-red-600 text-white py-2 px-4 rounded hover:bg-red-700"
+            >
+              Return to Lobby
+            </button>
+            {joinAttempts < 3 && (
+              <button 
+                onClick={() => window.location.reload()}
+                className="bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700"
+              >
+                Retry Connection
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  console.log('🔌 Connection state:', connectionState);
 
   return (
     <div className="min-h-screen bg-black">
       <StreamRoomLayout 
         isHost={isHost}
         user={user}
-        mainViewTrack={isHost ? mainViewTrack : hostScreenTrack}
         selfViewTrack={selfViewTrack}
         remoteUsers={remoteUsers}
         toggleMic={toggleMic}
@@ -812,8 +1025,10 @@ const StreamRoomPage = ({ isHost, roomId, token, user, onLeaveRoom, theme, toggl
         handleStopMovie={handleStopMovie}
         hostUid={isHost ? user.uid : null}
         dataStreamReady={dataStreamReady || connectionState === 'CONNECTED'}
-        hostScreenTrack={hostScreenTrack}
-        hostCameraTrack={null} // Not used in single client approach
+        hostScreenUser={hostScreenUser}
+        hostCameraUser={hostCameraUser}
+        connectionError={connectionError}
+        screenVideoTrack={screenVideoTrack} // Pass the actual screen track
       />
     </div>
   );
