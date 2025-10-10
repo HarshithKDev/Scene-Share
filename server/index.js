@@ -9,10 +9,6 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
-// In-memory store for room hosts.
-// !! IMPORTANT !! In a real production app, replace this with a persistent database like Redis or Firestore.
-const roomHosts = new Map();
-
 try {
   const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
   admin.initializeApp({
@@ -22,6 +18,11 @@ try {
   console.error('Error initializing Firebase Admin SDK:', error);
   process.exit(1);
 }
+
+// Initialize Firestore
+const db = admin.firestore();
+const roomsCollection = db.collection('rooms');
+
 
 const verifyFirebaseToken = async (req, res, next) => {
   const authHeader = req.headers.authorization;
@@ -39,7 +40,7 @@ const verifyFirebaseToken = async (req, res, next) => {
 };
 
 // New endpoint for a user to declare themselves as host of a new room
-app.post('/create-room', verifyFirebaseToken, (req, res) => {
+app.post('/create-room', verifyFirebaseToken, async (req, res) => {
     const { channelName } = req.body;
     const { uid } = req.user;
 
@@ -47,22 +48,22 @@ app.post('/create-room', verifyFirebaseToken, (req, res) => {
         return res.status(400).json({ error: 'channelName is required.' });
     }
 
-    // A user can only host one room at a time for this simple setup
-    roomHosts.set(channelName, uid);
-    console.log(`✅ Room created: Channel [${channelName}] hosted by User [${uid}]`);
-
-    // Clean up the room host entry after 24 hours
-    setTimeout(() => {
-        if (roomHosts.get(channelName) === uid) {
-            roomHosts.delete(channelName);
-            console.log(`🧹 Cleaned up expired room: [${channelName}]`);
-        }
-    }, 24 * 60 * 60 * 1000);
-
-    res.status(201).json({ message: 'Room created successfully.' });
+    try {
+        // Use the channelName as the document ID in the 'rooms' collection
+        await roomsCollection.doc(channelName).set({
+            hostUid: uid,
+            createdAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+        console.log(`✅ Room created: Channel [${channelName}] hosted by User [${uid}]`);
+        res.status(201).json({ message: 'Room created successfully.' });
+    } catch (error) {
+        console.error("Error creating room in Firestore:", error);
+        res.status(500).json({ error: 'Failed to create room.' });
+    }
 });
 
-app.post('/get-agora-token', verifyFirebaseToken, (req, res) => {
+
+app.post('/get-agora-token', verifyFirebaseToken, async (req, res) => {
   const { channelName } = req.body;
   const { uid: requestingUid } = req.user; // UID from the verified Firebase token
 
@@ -71,7 +72,17 @@ app.post('/get-agora-token', verifyFirebaseToken, (req, res) => {
   }
 
   // Determine if the requesting user is the host of this channel
-  const hostUid = roomHosts.get(channelName);
+  let hostUid;
+  try {
+      const roomDoc = await roomsCollection.doc(channelName).get();
+      if (roomDoc.exists) {
+          hostUid = roomDoc.data().hostUid;
+      }
+  } catch (error) {
+      console.error("Error getting room from Firestore:", error);
+      return res.status(500).json({ error: 'Failed to get room details.' });
+  }
+
   const isHost = hostUid === requestingUid;
 
   // Screen share clients get a separate UID
@@ -117,12 +128,20 @@ app.post('/get-agora-token', verifyFirebaseToken, (req, res) => {
 });
 
 
-app.get('/health', (req, res) => {
+app.get('/health', async (req, res) => {
+  let activeRooms = 0;
+  try {
+      const snapshot = await roomsCollection.get();
+      activeRooms = snapshot.size;
+  } catch (error) {
+      console.error("Error getting active rooms count:", error);
+  }
+
   res.status(200).json({
     status: 'OK',
     agoraAppId: process.env.AGORA_APP_ID ? 'Configured' : 'Missing',
     firebase: admin.apps.length > 0 ? 'Configured' : 'Missing',
-    activeRooms: roomHosts.size,
+    activeRooms: activeRooms,
     timestamp: new Date().toISOString()
   });
 });
