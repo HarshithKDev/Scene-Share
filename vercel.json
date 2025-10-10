@@ -16,6 +16,15 @@
   "routes": [
     {
       "src": "/get-agora-token",
+      "methods": ["POST", "GET"],
+      "dest": "server/index.js"
+    },
+    {
+      "src": "/health",
+      "dest": "server/index.js"
+    },
+    {
+      "src": "/test-token",
       "dest": "server/index.js"
     },
     {

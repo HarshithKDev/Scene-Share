@@ -1,4 +1,4 @@
-// App.jsx - Updated token handling
+// App.jsx - UPDATED fetchAgoraToken function
 import React, { useState, useEffect, useCallback } from 'react';
 import { auth, updateProfile } from './firebase';
 import { onAuthStateChanged, signOut } from "firebase/auth";
@@ -64,16 +64,18 @@ export default function App() {
     }
   };
 
-  // Enhanced token fetching with error handling
-  const fetchAgoraToken = useCallback(async (channelName) => {
+  // IMPROVED fetchAgoraToken with better error handling for screen sharing
+  const fetchAgoraToken = useCallback(async (channelName, uid) => {
     if (!user) {
-      console.error('No user authenticated');
-      return null;
+      console.error('❌ No user authenticated');
+      throw new Error('User not authenticated');
     }
     
     try {
       const idToken = await user.getIdToken();
-      console.log('Fetching token for channel:', channelName);
+      const targetUid = uid || user.uid;
+      
+      console.log(`🔑 Requesting token for channel: ${channelName}, UID: ${targetUid}`);
       
       const response = await fetch(`${BACKEND_URL}/get-agora-token`, {
         method: 'POST',
@@ -81,21 +83,46 @@ export default function App() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${idToken}`,
         },
-        body: JSON.stringify({ channelName }),
+        body: JSON.stringify({ 
+          channelName, 
+          uid: targetUid.toString()
+        }),
       });
       
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Token fetch failed:', response.status, errorText);
-        throw new Error(`Failed to get token: ${response.status} ${errorText}`);
+        let errorText;
+        try {
+          errorText = await response.text();
+        } catch {
+          errorText = response.statusText;
+        }
+        
+        console.error('❌ Token fetch failed:', {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorText,
+          channelName,
+          uid: targetUid
+        });
+        
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
       }
       
       const data = await response.json();
-      console.log('Token received successfully');
+      
+      if (!data.token) {
+        throw new Error('No token received from server');
+      }
+      
+      console.log('✅ Token received successfully for UID:', targetUid);
       return data.token;
     } catch (error) {
-      console.error("Error fetching Agora token:", error);
-      return null;
+      console.error("❌ Error fetching Agora token:", {
+        error: error.message,
+        channelName,
+        uid: uid || user?.uid
+      });
+      throw error;
     }
   }, [user]);
 
@@ -103,7 +130,6 @@ export default function App() {
     if (!user) return;
     const roomCode = Math.floor(100000 + Math.random() * 900000).toString();
     
-    // Persist host status in sessionStorage
     const hostedRooms = JSON.parse(sessionStorage.getItem('hosted_rooms') || '{}');
     hostedRooms[roomCode] = true;
     sessionStorage.setItem('hosted_rooms', JSON.stringify(hostedRooms));
@@ -136,7 +162,6 @@ export default function App() {
     const [loadingToken, setLoadingToken] = useState(true);
     const [tokenError, setTokenError] = useState(null);
 
-    // Check sessionStorage to persist host status on refresh
     const hostedRooms = JSON.parse(sessionStorage.getItem('hosted_rooms') || '{}');
     const isHost = location.state?.isHost || !!hostedRooms[roomId];
 
@@ -144,13 +169,21 @@ export default function App() {
       const getToken = async () => {
         if (user && roomId) {
           setTokenError(null);
-          const token = await fetchAgoraToken(roomId);
-          if (token) {
-            setAgoraToken(token);
-          } else {
-            setTokenError('Failed to get access token. Please try again.');
+          setLoadingToken(true);
+          
+          try {
+            const token = await fetchAgoraToken(roomId, user.uid);
+            if (token) {
+              setAgoraToken(token);
+            } else {
+              setTokenError('Failed to get access token. Please try again.');
+            }
+          } catch (error) {
+            console.error('❌ Token fetch error:', error);
+            setTokenError(`Failed to join room: ${error.message}`);
+          } finally {
+            setLoadingToken(false);
           }
-          setLoadingToken(false);
         }
       };
       getToken();
@@ -162,6 +195,7 @@ export default function App() {
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
             <div>Joining room {roomId}...</div>
+            <div className="text-sm text-gray-400 mt-2">Authenticating and getting token</div>
           </div>
         </div>
       );
@@ -170,15 +204,25 @@ export default function App() {
     if (tokenError) {
       return (
         <div className="min-h-screen bg-black flex items-center justify-center text-white">
-          <div className="text-center">
-            <div className="text-red-500 text-xl mb-4">Error</div>
-            <div className="mb-4">{tokenError}</div>
-            <button 
-              onClick={handleLeaveRoom}
-              className="bg-red-600 text-white py-2 px-4 rounded hover:bg-red-700"
-            >
-              Return to Lobby
-            </button>
+          <div className="text-center max-w-md p-6">
+            <div className="text-red-500 text-xl mb-4">Connection Error</div>
+            <div className="mb-4 bg-gray-800 p-4 rounded text-left">
+              <div className="text-sm font-mono break-all">{tokenError}</div>
+            </div>
+            <div className="flex gap-4 justify-center">
+              <button 
+                onClick={handleLeaveRoom}
+                className="bg-red-600 text-white py-2 px-4 rounded hover:bg-red-700"
+              >
+                Return to Lobby
+              </button>
+              <button 
+                onClick={() => window.location.reload()}
+                className="bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700"
+              >
+                Try Again
+              </button>
+            </div>
           </div>
         </div>
       );
@@ -186,7 +230,7 @@ export default function App() {
 
     return (
       <StreamRoomPageWrapper
-        key={`${user.uid}-${roomId}`} // Force re-mount on room or user change
+        key={`${user.uid}-${roomId}`}
         isHost={isHost}
         roomId={roomId}
         token={agoraToken}
@@ -195,13 +239,17 @@ export default function App() {
         theme={theme}
         toggleTheme={toggleTheme}
         appId={import.meta.env.VITE_AGORA_APP_ID}
-        onTokenError={setTokenError}
+        fetchAgoraToken={fetchAgoraToken}
       />
     );
   };
 
   if (loading) {
-    return <div className="min-h-screen bg-white dark:bg-black"></div>;
+    return (
+      <div className="min-h-screen bg-white dark:bg-black flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black dark:border-white"></div>
+      </div>
+    );
   }
   
   return (

@@ -1,4 +1,4 @@
-// server/index.js - Updated token generation
+// server/index.js - UPDATED VERSION
 const express = require('express');
 const { RtcTokenBuilder, RtcRole } = require('agora-token');
 const cors = require('cors');
@@ -35,14 +35,12 @@ const verifyFirebaseToken = async (req, res, next) => {
 };
 
 app.post('/get-agora-token', verifyFirebaseToken, (req, res) => {
-  const { channelName } = req.body;
-  const uid = req.user.uid;
+  const { channelName, uid } = req.body;
 
-  if (!channelName) {
-    return res.status(400).json({ error: 'channelName is required' });
+  if (!channelName || !uid) {
+    return res.status(400).json({ error: 'channelName and uid are required' });
   }
 
-  // Get Agora credentials from environment variables
   const appId = process.env.AGORA_APP_ID;
   const appCertificate = process.env.AGORA_APP_CERTIFICATE;
 
@@ -52,45 +50,94 @@ app.post('/get-agora-token', verifyFirebaseToken, (req, res) => {
   }
 
   try {
-    // Generate token with proper parameters
     const role = RtcRole.PUBLISHER;
     const expirationTimeInSeconds = 3600; // 1 hour
     const currentTimestamp = Math.floor(Date.now() / 1000);
     const privilegeExpiredTs = currentTimestamp + expirationTimeInSeconds;
 
-    // IMPORTANT: Use buildTokenWithUid for numeric UID or buildTokenWithUserAccount for string UID
-    const token = RtcTokenBuilder.buildTokenWithUid(
+    // Ensure UID is treated as string
+    const stringUid = uid.toString();
+    
+    console.log(`🔄 Generating token for channel: ${channelName}, UID: ${stringUid}`);
+
+    // Use buildTokenWithUserAccount for string-based UIDs
+    const token = RtcTokenBuilder.buildTokenWithUserAccount(
       appId,
       appCertificate,
       channelName,
-      0, // Use 0 for dynamic UID assignment, or convert Firebase UID to number
+      stringUid,
       role,
       privilegeExpiredTs
     );
 
-    console.log(`Token generated for channel: ${channelName}, user: ${uid}`);
+    console.log(`✅ Token generated successfully for UID: ${stringUid}`);
     
     return res.status(200).json({ 
       token: token,
-      appId: appId, // Return appId for verification
-      channel: channelName
+      uid: stringUid
     });
   } catch (error) {
-    console.error('Error generating Agora token:', error);
+    console.error('❌ Error generating Agora token:', error);
     return res.status(500).json({ error: 'Failed to generate token: ' + error.message });
   }
 });
 
-// Health check endpoint
+// Health check endpoint with more detailed info
 app.get('/health', (req, res) => {
   res.status(200).json({ 
     status: 'OK', 
     agoraAppId: process.env.AGORA_APP_ID ? 'Configured' : 'Missing',
-    firebase: serviceAccount.project_id 
+    agoraCertificate: process.env.AGORA_APP_CERTIFICATE ? 'Configured' : 'Missing',
+    firebase: serviceAccount.project_id ? 'Configured' : 'Missing',
+    timestamp: new Date().toISOString()
   });
+});
+
+// Test endpoint without auth for debugging
+app.get('/test-token', (req, res) => {
+  const { channelName, uid } = req.query;
+  
+  if (!channelName || !uid) {
+    return res.status(400).json({ error: 'channelName and uid query parameters are required' });
+  }
+
+  const appId = process.env.AGORA_APP_ID;
+  const appCertificate = process.env.AGORA_APP_CERTIFICATE;
+
+  if (!appId || !appCertificate) {
+    return res.status(500).json({ error: 'Server configuration error.' });
+  }
+
+  try {
+    const role = RtcRole.PUBLISHER;
+    const expirationTimeInSeconds = 3600;
+    const currentTimestamp = Math.floor(Date.now() / 1000);
+    const privilegeExpiredTs = currentTimestamp + expirationTimeInSeconds;
+
+    const token = RtcTokenBuilder.buildTokenWithUserAccount(
+      appId,
+      appCertificate,
+      channelName,
+      uid.toString(),
+      role,
+      privilegeExpiredTs
+    );
+
+    res.status(200).json({ 
+      token: token,
+      channelName: channelName,
+      uid: uid,
+      appId: appId
+    });
+  } catch (error) {
+    console.error('Test token error:', error);
+    res.status(500).json({ error: 'Failed to generate test token: ' + error.message });
+  }
 });
 
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
+  console.log(`🚀 Server is running on port ${PORT}`);
+  console.log(`🔑 Agora App ID: ${process.env.AGORA_APP_ID ? 'Configured' : 'MISSING'}`);
+  console.log(`📋 Health check: http://localhost:${PORT}/health`);
 });
