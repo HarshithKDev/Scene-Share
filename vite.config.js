@@ -1,3 +1,4 @@
+/// <reference types="vitest" />
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
@@ -11,12 +12,16 @@ export default defineConfig({
       'Cross-Origin-Embedder-Policy': 'require-corp',
     },
     proxy: {
-      // ADD THIS RULE
-      '/create-room': {
+      // --- ADD THIS NEW RULE ---
+      '/heartbeat': {
         target: 'http://localhost:8080',
         changeOrigin: true,
       },
       // Keep the existing rules
+      '/create-room': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
       '/get-agora-token': {
         target: 'http://localhost:8080',
         changeOrigin: true,
@@ -31,4 +36,10 @@ export default defineConfig({
       },
     },
   },
-})
+  test: {
+    globals: true,
+    environment: 'jsdom',
+    setupFiles: './tests/setup.js',
+    css: false,
+  },
+});

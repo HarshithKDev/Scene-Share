@@ -1,6 +1,8 @@
+// src/pages/useStreamRoomHooks.js
 import { useState, useEffect, useRef, useCallback } from 'react';
 import AgoraRTC from "agora-rtc-sdk-ng";
 import { useRTCClient, useRemoteUsers, useRemoteAudioTracks, useConnectionState } from "agora-rtc-react";
+import { sendHeartbeat } from '../services/agoraApi'; // --- IMPORT HEARTBEAT ---
 
 export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, fetchAgoraToken, onTokenError }) => {
   const agoraClient = useRTCClient();
@@ -10,13 +12,12 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, fetchAg
   const remoteUsers = useRemoteUsers();
   const { audioTracks } = useRemoteAudioTracks(remoteUsers);
 
-  // Initialize state from sessionStorage or default to true
   const [micOn, setMicOn] = useState(() => {
-    const savedMicState = sessionStorage.getItem('micOn');
+    const savedMicState = localStorage.getItem('micOn');
     return savedMicState !== null ? JSON.parse(savedMicState) : true;
   });
   const [cameraOn, setCameraOn] = useState(() => {
-      const savedCameraState = sessionStorage.getItem('cameraOn');
+      const savedCameraState = localStorage.getItem('cameraOn');
       return savedCameraState !== null ? JSON.parse(savedCameraState) : true;
   });
   const [isMoviePlaying, setIsMoviePlaying] = useState(() => {
@@ -31,6 +32,8 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, fetchAg
   const [joinAttempts, setJoinAttempts] = useState(0);
   const [screenVideoTrack, setScreenVideoTrack] = useState(null);
   const [screenShareError, setScreenShareError] = useState(null);
+  const [activeSpeakerUid, setActiveSpeakerUid] = useState(null);
+
 
   const localMicrophoneTrackRef = useRef(null);
   const localCameraTrackRef = useRef(null);
@@ -44,13 +47,29 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, fetchAg
     screenClientJoined: false
   });
 
-  // Save state to sessionStorage whenever it changes
+  // --- NEW: HEARTBEAT EFFECT FOR HOST ---
   useEffect(() => {
-    sessionStorage.setItem('micOn', JSON.stringify(micOn));
+    if (isHost && connectionState === 'CONNECTED') {
+      // Send initial heartbeat
+      sendHeartbeat(roomId, () => user.getIdToken());
+
+      // Set up interval to send heartbeat every 5 minutes
+      const intervalId = setInterval(() => {
+        console.log('💓 Sending host heartbeat...');
+        sendHeartbeat(roomId, () => user.getIdToken());
+      }, 5 * 60 * 1000); // 5 minutes
+
+      // Clean up interval on component unmount
+      return () => clearInterval(intervalId);
+    }
+  }, [isHost, connectionState, roomId, user]);
+
+  useEffect(() => {
+    localStorage.setItem('micOn', JSON.stringify(micOn));
   }, [micOn]);
 
   useEffect(() => {
-      sessionStorage.setItem('cameraOn', JSON.stringify(cameraOn));
+      localStorage.setItem('cameraOn', JSON.stringify(cameraOn));
   }, [cameraOn]);
 
   useEffect(() => {
@@ -59,6 +78,34 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, fetchAg
     }
   }, [isMoviePlaying, isHost]);
 
+  useEffect(() => {
+    if (!agoraClient) return;
+
+    agoraClient.enableAudioVolumeIndication();
+
+    const handleVolumeIndicator = (volumes) => {
+      let maxVolume = 0;
+      let speakerUid = null;
+
+      volumes.forEach((volume) => {
+        if (volume.level > maxVolume && volume.level > 5) {
+          maxVolume = volume.level;
+          speakerUid = volume.uid === 0 ? user.uid : volume.uid;
+        }
+      });
+      
+      setActiveSpeakerUid(speakerUid);
+    };
+
+    agoraClient.on("volume-indicator", handleVolumeIndicator);
+
+    return () => {
+      agoraClient.off("volume-indicator", handleVolumeIndicator);
+    };
+  }, [agoraClient, user.uid]);
+
+  // ... (rest of the file remains the same)
+  // ...
   const validateToken = useCallback((token, appId, channelName, uid) => {
     if (!token) {
       console.error('❌ Token is null or undefined');
@@ -74,7 +121,6 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, fetchAg
     return true;
   }, []);
 
-  // Create screen client
   useEffect(() => {
     if (isHost && !screenClient) {
       const newScreenClient = AgoraRTC.createClient({ 
@@ -85,12 +131,12 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, fetchAg
     }
   }, [isHost, screenClient]);
 
-  // Real-time debugging
   useEffect(() => {
     console.log('🔍 REAL-TIME DEBUG - Room State:', {
       isHost,
       isMoviePlaying,
       connectionState,
+      activeSpeakerUid,
       remoteUsers: remoteUsers.map(u => ({
         uid: u.uid,
         isScreen: u.uid.toString().endsWith('-screen'),
@@ -104,7 +150,7 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, fetchAg
       } : null,
       screenVideoTrack: !!screenVideoTrack
     });
-  }, [isHost, isMoviePlaying, connectionState, remoteUsers, hostScreenUser, screenVideoTrack]);
+  }, [isHost, isMoviePlaying, connectionState, remoteUsers, hostScreenUser, screenVideoTrack, activeSpeakerUid]);
 
   const handleUserPublished = useCallback(async (user, mediaType) => {
     console.log('📡 User published:', user.uid, mediaType, 'isScreen:', user.uid.toString().endsWith('-screen'));
@@ -136,7 +182,6 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, fetchAg
         }
       } else if (!isHost) {
         console.log('👤 Regular user published:', user.uid);
-        // Check if this might be the host's camera
         if (!hostCameraUser) {
           console.log('🎯 Setting potential host camera user:', user.uid);
           setHostCameraUser(user);
@@ -179,7 +224,6 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, fetchAg
     }
   }, [hostCameraUser]);
 
-  // Auto-detect screen share user
   useEffect(() => {
     if (!isHost && !hostScreenUser) {
       const screenUser = remoteUsers.find(user => {
@@ -345,7 +389,6 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, fetchAg
   }, []);
 
   const handleStartStream = useCallback(async () => {
-    // UPDATED GUARD: Allows starting if isMoviePlaying is true but there's no active screen track.
     if (!isHost || (isMoviePlaying && screenVideoTrackRef.current) || isStartingStream || !screenClient) {
       console.log('handleStartStream returned early due to guard condition.');
       return;
@@ -446,7 +489,6 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, fetchAg
     }
   }, [isHost, isMoviePlaying, isStartingStream, screenClient, user.uid, appId, roomId, createScreenTrack, handleStopMovie, sendStreamMessage, fetchAgoraToken]);
 
-  // Stream message debug handler
   useEffect(() => {
     if (!agoraClient) return;
 
@@ -469,7 +511,6 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, fetchAg
     };
   }, [agoraClient]);
 
-  // Handle stream messages for participants
   useEffect(() => {
     if (!agoraClient) return;
 
@@ -519,7 +560,6 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, fetchAg
     };
   }, [agoraClient, user.uid, remoteUsers]);
 
-  // Main client initialization
   useEffect(() => {
     const shouldInitialize = 
       agoraClient && 
@@ -593,7 +633,6 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, fetchAg
     return () => {
       console.log('🧹 Cleaning up StreamRoom hooks...');
       
-      // Stop and close local tracks
       if (localMicrophoneTrackRef.current) {
         localMicrophoneTrackRef.current.stop();
         localMicrophoneTrackRef.current.close();
@@ -605,10 +644,8 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, fetchAg
         localCameraTrackRef.current = null;
       }
       
-      // Detach all event listeners
       agoraClient.removeAllListeners();
 
-      // Leave the main channel
       if (initializationRef.current.hasJoined) {
         agoraClient.leave().then(() => {
           console.log('✅ Main client left channel successfully.');
@@ -617,7 +654,6 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, fetchAg
         });
       }
       
-      // Leave the screen channel
       if (screenClient && initializationRef.current.screenClientJoined) {
         screenClient.leave().then(() => {
           console.log('✅ Screen client left channel successfully.');
@@ -626,14 +662,12 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, fetchAg
         });
       }
 
-      // Reset initialization state
       initializationRef.current.hasJoined = false;
       initializationRef.current.isInitializing = false;
       initializationRef.current.screenClientJoined = false;
     };
   }, [agoraClient, appId, roomId, token, user.uid, handleUserPublished, handleUserUnpublished, handleUserJoined, handleUserLeft, handleTokenPrivilegeWillExpire, handleTokenPrivilegeDidExpire, onTokenError, validateToken, micOn, cameraOn]);
 
-  // Create data stream when connected
   useEffect(() => {
     if (connectionState === 'CONNECTED' && !dataStreamRef.current && agoraClient?.createDataStream) {
       const createDataStream = async () => {
@@ -649,7 +683,6 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, fetchAg
     }
   }, [connectionState, agoraClient]);
 
-  // Play remote audio tracks
   useEffect(() => {
     audioTracks.forEach(track => {
       try {
@@ -700,6 +733,7 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, fetchAg
     toggleMic,
     handleStartStream,
     handleStopMovie,
-    sendStreamMessage
+    sendStreamMessage,
+    activeSpeakerUid
   };
 };

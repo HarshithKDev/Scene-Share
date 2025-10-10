@@ -1,5 +1,7 @@
 // src/pages/StreamRoomPage.jsx
-import React, { useCallback } from 'react';
+import React, { useCallback, useMemo } from 'react';
+import { AgoraRTCProvider } from "agora-rtc-react";
+import AgoraRTC from "agora-rtc-sdk-ng";
 import StreamRoomLayout from './StreamRoomLayout';
 import { useStreamRoomHooks } from './useStreamRoomHooks';
 import { useAuth } from '../context/AuthContext';
@@ -33,7 +35,8 @@ const StreamRoomPage = ({ isHost, roomId, token, onLeaveRoom, appId }) => {
     toggleCamera,
     toggleMic,
     handleStartStream,
-    handleStopMovie
+    handleStopMovie,
+    activeSpeakerUid
   } = useStreamRoomHooks({
     isHost,
     roomId,
@@ -80,7 +83,6 @@ const StreamRoomPage = ({ isHost, roomId, token, onLeaveRoom, appId }) => {
             >
               Return to Lobby
             </button>
-            {/* Note: Reloading is not ideal, a state reset would be better, but this is a quick fix */}
             {joinAttempts < 3 && (
               <button
                 onClick={() => window.location.reload()}
@@ -95,6 +97,8 @@ const StreamRoomPage = ({ isHost, roomId, token, onLeaveRoom, appId }) => {
     );
   }
 
+  // The wrapper in the original file is not needed here as it's handled in Room.jsx
+  // This component now assumes it's rendered within an AgoraRTCProvider
   return (
     <div className="min-h-screen bg-black">
       <StreamRoomLayout
@@ -106,7 +110,7 @@ const StreamRoomPage = ({ isHost, roomId, token, onLeaveRoom, appId }) => {
         micOn={micOn}
         cameraOn={cameraOn}
         handleLeave={handleLeave}
-        isConnected={connectionState === 'CONNECTED'}
+        connectionState={connectionState} // <-- PASS PROP TO LAYOUT
         handleStartStream={handleStartStream}
         isMoviePlaying={isMoviePlaying}
         roomId={roomId}
@@ -119,24 +123,11 @@ const StreamRoomPage = ({ isHost, roomId, token, onLeaveRoom, appId }) => {
         screenVideoTrack={screenVideoTrack}
         screenShareError={screenShareError}
         setScreenShareError={setScreenShareError}
+        activeSpeakerUid={activeSpeakerUid}
       />
     </div>
   );
 };
 
-const StreamRoomPageWrapper = (props) => {
-  const client = React.useMemo(() =>
-    AgoraRTC.createClient({
-      codec: "vp8",
-      mode: "rtc",
-    }), []
-  );
-
-  return (
-    <AgoraRTCProvider client={client}>
-      <StreamRoomPage {...props} />
-    </AgoraRTCProvider>
-  );
-};
 
 export default StreamRoomPage;

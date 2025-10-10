@@ -5,6 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import { fetchAgoraToken } from '../../services/agoraApi';
 import { AgoraRTCProvider } from "agora-rtc-react";
 import AgoraRTC from "agora-rtc-sdk-ng";
+import { Button } from '../ui/Button'; // Import Button for the UI
 
 const StreamRoomPage = lazy(() => import('../../pages/StreamRoomPage'));
 
@@ -20,8 +21,6 @@ const Room = () => {
 
     const isHost = state?.isHost || false;
 
-    // Create a new Agora client instance every time the component renders.
-    // useMemo ensures it's stable within a single render cycle.
     const agoraClient = useMemo(() => 
         AgoraRTC.createClient({ codec: "vp8", mode: "rtc" }),
         []
@@ -36,7 +35,12 @@ const Room = () => {
                 setAgoraToken(token);
             } catch (err) {
                 console.error('Token fetch error:', err);
-                setError(`Failed to join room: ${err.message}`);
+                // --- NEW: Specific error handling ---
+                if (err.message.includes('404')) {
+                    setError(`Room not found. Please check the ID and try again.`);
+                } else {
+                    setError(`Failed to join room: ${err.message}`);
+                }
             } finally {
                 setLoading(false);
             }
@@ -50,11 +54,26 @@ const Room = () => {
     const handleLeaveRoom = () => navigate('/');
 
     if (loading) {
-        // ... (loading UI remains the same)
+        return (
+            <div className="min-h-screen bg-neutral-950 flex items-center justify-center text-white">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
+              <p className="ml-4 text-lg">Joining Room...</p>
+            </div>
+        );
     }
 
     if (error) {
-        // ... (error UI remains the same)
+        return (
+            <div className="min-h-screen bg-neutral-950 flex items-center justify-center text-white">
+                <div className="text-center bg-neutral-900 p-8 rounded-lg shadow-lg">
+                    <h2 className="text-2xl font-bold text-red-500 mb-4">Error</h2>
+                    <p className="text-neutral-300 mb-6">{error}</p>
+                    <Button onClick={handleLeaveRoom} variant="primary">
+                        Return to Lobby
+                    </Button>
+                </div>
+            </div>
+        );
     }
     
     return agoraToken ? (

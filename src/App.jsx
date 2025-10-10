@@ -2,6 +2,7 @@
 import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
+import { useToast } from './context/ToastContext'; // --- IMPORT useToast ---
 import { updateProfile } from 'firebase/auth';
 import { sanitizeInput } from './utils/sanitize';
 
@@ -29,6 +30,7 @@ export default function App() {
   const [showUsernameModal, setShowUsernameModal] = useState(false);
   const [isNewUser, setIsNewUser] = useState(false);
   const navigate = useNavigate();
+  const { addToast } = useToast(); // --- USE the hook ---
 
   useEffect(() => {
     if (user) {
@@ -51,8 +53,10 @@ export default function App() {
         setUser(updatedUser); 
         setShowUsernameModal(false);
         setIsNewUser(false);
+        addToast('Username updated successfully!', 'success'); // Success feedback
       } catch (error) {
         console.error("Error updating profile: ", error);
+        addToast(`Error updating username: ${error.message}`, 'error'); // Error feedback
       }
     }
   };
@@ -61,7 +65,7 @@ export default function App() {
     const roomCode = Math.floor(100000 + Math.random() * 900000).toString();
     try {
         const idToken = await user.getIdToken();
-        await fetch(`${BACKEND_URL}/create-room`, {
+        const response = await fetch(`${BACKEND_URL}/create-room`, { // --- Capture response ---
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -69,17 +73,28 @@ export default function App() {
             },
             body: JSON.stringify({ channelName: roomCode }),
         });
-        navigate(`/room/${roomCode}`);
+
+        // --- NEW: Check if response is ok ---
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Server responded with an error');
+        }
+
+        navigate(`/room/${roomCode}`, { state: { isHost: true } }); // Navigate as host
     } catch (error) {
         console.error("Failed to create room on server:", error);
-        // Show a toast error to the user
+        // --- NEW: Show a toast error to the user ---
+        addToast(`Failed to create room: ${error.message}`, 'error');
     }
   };
 
   const handleJoinRoom = (id) => {
     const sanitizedId = sanitizeInput(id);
-    if (sanitizedId) {
-      navigate(`/room/${sanitizedId}`);
+    if (sanitizedId && sanitizedId.length >= 6) { // Basic validation
+      navigate(`/room/${sanitizedId}`, { state: { isHost: false } }); // Navigate as participant
+    } else {
+      // --- NEW: Show a toast for invalid input ---
+      addToast('Please enter a valid Room ID.', 'error');
     }
   };
 

@@ -3,6 +3,32 @@
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || '';
 
 /**
+ * Sends a heartbeat to the server to keep the room alive.
+ * @param {string} channelName - The name of the channel (room).
+ * @param {Function} getIdToken - A function to get the Firebase auth token.
+ */
+export const sendHeartbeat = async (channelName, getIdToken) => {
+    if (!getIdToken) {
+        console.error('Get ID token function is required for heartbeat.');
+        return;
+    }
+    try {
+        const idToken = await getIdToken();
+        await fetch(`${BACKEND_URL}/heartbeat`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${idToken}`,
+            },
+            body: JSON.stringify({ channelName }),
+        });
+    } catch (error) {
+        console.error('Failed to send heartbeat:', error);
+    }
+};
+
+
+/**
  * Fetches an Agora RTC token from the server.
  * @param {string} channelName - The name of the channel to join.
  * @param {string} uid - The user ID.
@@ -31,6 +57,7 @@ export const fetchAgoraToken = async (channelName, uid, getIdToken) => {
         });
 
         if (!response.ok) {
+            // Include status in the error message to detect 404s
             const errorText = await response.text();
             throw new Error(`HTTP ${response.status}: ${errorText}`);
         }
@@ -44,6 +71,6 @@ export const fetchAgoraToken = async (channelName, uid, getIdToken) => {
         return data.token;
     } catch (error) {
         console.error("❌ Error fetching Agora token:", error);
-        throw error; // Re-throw the error to be handled by the calling component
+        throw error;
     }
 };

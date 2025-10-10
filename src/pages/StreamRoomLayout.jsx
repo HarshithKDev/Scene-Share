@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { LocalVideoTrack, RemoteUser } from "agora-rtc-react";
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { Copy, Mic, MicOff, Video, VideoOff, Monitor, X, Crown, LogOut, Play } from 'lucide-react';
+import { Copy, Mic, MicOff, Video, VideoOff, Monitor, X, Crown, LogOut, Play, Wifi, WifiOff } from 'lucide-react';
 
 // --- Reusable UI Components (like shadcn/ui) ---
 
@@ -40,13 +40,15 @@ const CardContent = ({ children, className = '' }) => (
 
 // --- Main Layout Components ---
 
-const ParticipantCard = ({ user, isSelf, isHost, selfViewTrack, micOn, videoOn, toggleMic, toggleVideo }) => {
+const ParticipantCard = ({ user, isSelf, isHost, selfViewTrack, micOn, videoOn, toggleMic, toggleVideo, isActiveSpeaker }) => {
   const displayName = isSelf ? `${user.displayName || 'You'}` : `User-${user.uid.toString().substring(0, 4)}`;
+  
+  const videoContainerClasses = `relative w-full aspect-video bg-neutral-800 rounded-md flex items-center justify-center overflow-hidden transition-all duration-300 ${isActiveSpeaker ? 'ring-2 ring-green-500 ring-offset-2 ring-offset-neutral-900' : ''}`;
 
   return (
     <Card>
       <CardContent className="flex flex-col gap-2">
-        <div className="relative w-full aspect-video bg-neutral-800 rounded-md flex items-center justify-center overflow-hidden">
+        <div className={videoContainerClasses}>
           {isSelf ? (
             videoOn && selfViewTrack ? (
               <LocalVideoTrack track={selfViewTrack} play={true} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -85,9 +87,34 @@ const ParticipantCard = ({ user, isSelf, isHost, selfViewTrack, micOn, videoOn, 
   );
 };
 
+const ConnectionStateOverlay = ({ state }) => {
+    if (state === 'CONNECTED') return null;
+
+    let message = 'Connecting...';
+    let icon = <Wifi className="w-12 h-12 mx-auto mb-4 animate-pulse" />;
+
+    if (state === 'RECONNECTING') {
+        message = 'Connection lost. Reconnecting...';
+        icon = <WifiOff className="w-12 h-12 mx-auto mb-4 text-yellow-500 animate-pulse" />;
+    } else if (state === 'DISCONNECTED' || state === 'FAILED') {
+        message = 'Disconnected.';
+        icon = <WifiOff className="w-12 h-12 mx-auto mb-4 text-red-500" />;
+    }
+
+    return (
+        <div className="absolute inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-10">
+            <div className="text-center text-white">
+                {icon}
+                <p className="text-xl font-semibold">{message}</p>
+            </div>
+        </div>
+    );
+};
+
 const StreamRoomLayout = ({
   isHost, selfViewTrack, remoteUsers, toggleMic, toggleCamera, micOn, cameraOn, handleLeave,
-  handleStartStream, isMoviePlaying, roomId, handleStopMovie, hostScreenUser, screenShareError
+  handleStartStream, isMoviePlaying, roomId, handleStopMovie, hostScreenUser, screenShareError,
+  activeSpeakerUid, connectionState
 }) => {
   const { user } = useAuth();
   const { addToast } = useToast();
@@ -129,7 +156,6 @@ const StreamRoomLayout = ({
         </div>
         
         <div className="flex flex-col gap-4 overflow-y-auto">
-          {/* Host Card */}
           <ParticipantCard
             user={user}
             isSelf={true}
@@ -139,11 +165,15 @@ const StreamRoomLayout = ({
             videoOn={cameraOn}
             toggleMic={toggleMic}
             toggleVideo={toggleCamera}
+            isActiveSpeaker={activeSpeakerUid === user.uid}
           />
           
-          {/* Remote Participant Cards */}
           {participantUsers.map(remoteUser => (
-            <ParticipantCard key={remoteUser.uid} user={remoteUser} />
+            <ParticipantCard 
+              key={remoteUser.uid} 
+              user={remoteUser} 
+              isActiveSpeaker={activeSpeakerUid === remoteUser.uid}
+            />
           ))}
         </div>
       </div>
@@ -151,15 +181,22 @@ const StreamRoomLayout = ({
       {/* Main Screen: Screen Share & Controls */}
       <div className='flex-1 flex flex-col'>
         <main className='flex-1 flex items-center justify-center bg-neutral-900 relative p-4'>
-          {isMoviePlaying && hostScreenUser?.videoTrack ? (
-            <div ref={mainVideoContainerRef} className='w-full h-full bg-black rounded-lg'></div>
-          ) : (
-            <div className='text-center text-neutral-500'>
-              <Monitor size={64} className="mx-auto mb-4" />
-              <h2 className='text-2xl font-bold'>Waiting for Host to Share Screen</h2>
-              {isHost && <p className="mt-2">Click the "Start Stream" button below to begin.</p>}
-            </div>
+          <ConnectionStateOverlay state={connectionState} />
+          
+          {connectionState === 'CONNECTED' && (
+            <>
+              {isMoviePlaying && hostScreenUser?.videoTrack ? (
+                <div ref={mainVideoContainerRef} className='w-full h-full bg-black rounded-lg'></div>
+              ) : (
+                <div className='text-center text-neutral-500'>
+                  <Monitor size={64} className="mx-auto mb-4" />
+                  <h2 className='text-2xl font-bold'>Waiting for Host to Share Screen</h2>
+                  {isHost && <p className="mt-2">Click the "Start Stream" button below to begin.</p>}
+                </div>
+              )}
+            </>
           )}
+
           {screenShareError && (
               <div className="absolute bottom-6 left-6 bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow-lg">
                   {screenShareError}
