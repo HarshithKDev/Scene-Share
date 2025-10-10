@@ -1,4 +1,4 @@
-// server/index.js - UPDATED VERSION
+// server/index.js - FINAL VERSION
 const express = require('express');
 const { RtcTokenBuilder, RtcRole } = require('agora-token');
 const cors = require('cors');
@@ -9,10 +9,10 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
-// Initialize Firebase Admin SDK
-// IMPORTANT: It is strongly recommended to use a secure method to store and access your service account key,
-// such as a secret manager (e.g., Google Secret Manager, AWS Secrets Manager, HashiCorp Vault).
-// Avoid committing the key to your version control system.
+// In-memory store for room hosts.
+// !! IMPORTANT !! In a real production app, replace this with a persistent database like Redis or Firestore.
+const roomHosts = new Map();
+
 try {
   const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
   admin.initializeApp({
@@ -23,19 +23,14 @@ try {
   process.exit(1);
 }
 
-
 const verifyFirebaseToken = async (req, res, next) => {
   const authHeader = req.headers.authorization;
-
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return res.status(401).send('Unauthorized: No token provided.');
   }
-
   const idToken = authHeader.split('Bearer ')[1];
-
   try {
-    const decodedToken = await admin.auth().verifyIdToken(idToken);
-    req.user = decodedToken;
+    req.user = await admin.auth().verifyIdToken(idToken);
     next();
   } catch (error) {
     console.error('Error verifying Firebase token:', error);
@@ -43,74 +38,96 @@ const verifyFirebaseToken = async (req, res, next) => {
   }
 };
 
-app.post('/get-agora-token', verifyFirebaseToken, (req, res) => {
-  // Input validation and sanitization
-  const { channelName, uid } = req.body;
+// New endpoint for a user to declare themselves as host of a new room
+app.post('/create-room', verifyFirebaseToken, (req, res) => {
+    const { channelName } = req.body;
+    const { uid } = req.user;
 
-  if (!channelName || !uid || typeof channelName !== 'string' || typeof uid !== 'string') {
-    return res.status(400).json({ error: 'channelName and uid are required and must be strings.' });
+    if (!channelName) {
+        return res.status(400).json({ error: 'channelName is required.' });
+    }
+
+    // A user can only host one room at a time for this simple setup
+    roomHosts.set(channelName, uid);
+    console.log(`✅ Room created: Channel [${channelName}] hosted by User [${uid}]`);
+
+    // Clean up the room host entry after 24 hours
+    setTimeout(() => {
+        if (roomHosts.get(channelName) === uid) {
+            roomHosts.delete(channelName);
+            console.log(`🧹 Cleaned up expired room: [${channelName}]`);
+        }
+    }, 24 * 60 * 60 * 1000);
+
+    res.status(201).json({ message: 'Room created successfully.' });
+});
+
+app.post('/get-agora-token', verifyFirebaseToken, (req, res) => {
+  const { channelName } = req.body;
+  const { uid: requestingUid } = req.user; // UID from the verified Firebase token
+
+  if (!channelName || typeof channelName !== 'string') {
+    return res.status(400).json({ error: 'channelName is required and must be a string.' });
   }
 
-  const sanitizedChannelName = channelName.replace(/[^a-zA-Z0-9_-]/g, '');
-  const sanitizedUid = uid.replace(/[^a-zA-Z0-9_-]/g, '');
+  // Determine if the requesting user is the host of this channel
+  const hostUid = roomHosts.get(channelName);
+  const isHost = hostUid === requestingUid;
 
-  if (sanitizedChannelName.length === 0 || sanitizedUid.length === 0) {
+  // Screen share clients get a separate UID
+  const isScreenShare = req.body.uid && req.body.uid.endsWith('-screen');
+  const tokenUid = isScreenShare ? req.body.uid : requestingUid;
+
+  const sanitizedChannelName = channelName.replace(/[^a-zA-Z0-9_-]/g, '');
+  const sanitizedTokenUid = tokenUid.replace(/[^a-zA-Z0-9_-]/g, '');
+
+  if (sanitizedChannelName.length === 0 || sanitizedTokenUid.length === 0) {
     return res.status(400).json({ error: 'Invalid channelName or uid.' });
   }
 
-
   const appId = process.env.AGORA_APP_ID;
   const appCertificate = process.env.AGORA_APP_CERTIFICATE;
-
   if (!appId || !appCertificate) {
     console.error('Agora App ID or Certificate is missing');
     return res.status(500).json({ error: 'Server configuration error.' });
   }
 
   try {
-    const role = RtcRole.PUBLISHER;
+    const role = RtcRole.PUBLISHER; // Everyone can publish in this model
     const expirationTimeInSeconds = 3600; // 1 hour
     const currentTimestamp = Math.floor(Date.now() / 1000);
     const privilegeExpiredTs = currentTimestamp + expirationTimeInSeconds;
 
-    console.log(`🔄 Generating token for channel: ${sanitizedChannelName}, UID: ${sanitizedUid}`);
+    console.log(`🔄 Generating token for channel: ${sanitizedChannelName}, UID: ${sanitizedTokenUid}, isHost: ${isHost}`);
 
     const token = RtcTokenBuilder.buildTokenWithUserAccount(
       appId,
       appCertificate,
       sanitizedChannelName,
-      sanitizedUid,
+      sanitizedTokenUid,
       role,
       privilegeExpiredTs
     );
 
-    console.log(`✅ Token generated successfully for UID: ${sanitizedUid}`);
-
-    return res.status(200).json({
-      token: token,
-      uid: sanitizedUid
-    });
+    res.status(200).json({ token, uid: sanitizedTokenUid, isHost });
   } catch (error) {
     console.error('❌ Error generating Agora token:', error);
-    return res.status(500).json({ error: 'Failed to generate token: ' + error.message });
+    res.status(500).json({ error: 'Failed to generate token: ' + error.message });
   }
 });
 
-// Health check endpoint with more detailed info
+
 app.get('/health', (req, res) => {
   res.status(200).json({
     status: 'OK',
     agoraAppId: process.env.AGORA_APP_ID ? 'Configured' : 'Missing',
-    agoraCertificate: process.env.AGORA_APP_CERTIFICATE ? 'Configured' : 'Missing',
     firebase: admin.apps.length > 0 ? 'Configured' : 'Missing',
+    activeRooms: roomHosts.size,
     timestamp: new Date().toISOString()
   });
 });
 
-
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {
   console.log(`🚀 Server is running on port ${PORT}`);
-  console.log(`🔑 Agora App ID: ${process.env.AGORA_APP_ID ? 'Configured' : 'MISSING'}`);
-  console.log(`📋 Health check: http://localhost:${PORT}/health`);
 });

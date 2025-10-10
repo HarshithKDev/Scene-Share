@@ -1,4 +1,4 @@
-// src/App.jsx
+// src/App.jsx - FINAL VERSION
 import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
@@ -10,10 +10,11 @@ import ProtectedRoute from './components/routes/ProtectedRoute';
 import Room from './components/routes/Room';
 import './index.css';
 
-// Lazy load components
 const LoginPage = lazy(() => import('./pages/LoginPage'));
 const LobbyPage = lazy(() => import('./pages/LobbyPage'));
 const UsernameModal = lazy(() => import('./components/UsernameModal'));
+
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || '';
 
 function LoadingFallback() {
   return (
@@ -43,31 +44,42 @@ export default function App() {
   const handleUpdateUsername = async (newUsername) => {
     if (!user) return;
     const sanitizedUsername = sanitizeInput(newUsername);
-
     if (sanitizedUsername) {
       try {
         await updateProfile(user, { displayName: sanitizedUsername });
-        // Manually update the user object in our auth context
         const updatedUser = { ...user, displayName: sanitizedUsername };
         setUser(updatedUser); 
         setShowUsernameModal(false);
         setIsNewUser(false);
       } catch (error) {
         console.error("Error updating profile: ", error);
-        // Optionally, show an error toast to the user
       }
     }
   };
-  
-  const handleCreateRoom = () => {
+
+  const handleCreateRoom = async () => {
     const roomCode = Math.floor(100000 + Math.random() * 900000).toString();
-    navigate(`/room/${roomCode}`, { state: { isHost: true } });
+    try {
+        const idToken = await user.getIdToken();
+        await fetch(`${BACKEND_URL}/create-room`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${idToken}`,
+            },
+            body: JSON.stringify({ channelName: roomCode }),
+        });
+        navigate(`/room/${roomCode}`);
+    } catch (error) {
+        console.error("Failed to create room on server:", error);
+        // Show a toast error to the user
+    }
   };
 
   const handleJoinRoom = (id) => {
     const sanitizedId = sanitizeInput(id);
     if (sanitizedId) {
-      navigate(`/room/${sanitizedId}`, { state: { isHost: false } });
+      navigate(`/room/${sanitizedId}`);
     }
   };
 
@@ -82,28 +94,8 @@ export default function App() {
         {showUsernameModal && <UsernameModal onSubmit={handleUpdateUsername} isNewUser={isNewUser} />}
         <Routes>
           <Route path="/login" element={user ? <Navigate to="/" /> : <LoginPage />} />
-          
-          <Route 
-            path="/" 
-            element={
-              <ProtectedRoute>
-                <LobbyPage 
-                  onCreateRoom={handleCreateRoom} 
-                  onJoinRoom={handleJoinRoom}
-                  onEditUsername={openEditUsernameModal}
-                />
-              </ProtectedRoute>
-            } 
-          />
-          
-          <Route 
-            path="/room/:roomId" 
-            element={
-              <ProtectedRoute>
-                <Room />
-              </ProtectedRoute>
-            } 
-          />
+          <Route path="/" element={<ProtectedRoute><LobbyPage onCreateRoom={handleCreateRoom} onJoinRoom={handleJoinRoom} onEditUsername={openEditUsernameModal} /></ProtectedRoute>} />
+          <Route path="/room/:roomId" element={<ProtectedRoute><Room /></ProtectedRoute>} />
         </Routes>
       </Suspense>
     </ErrorBoundary>
