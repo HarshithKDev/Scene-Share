@@ -16,6 +16,12 @@
   "routes": [
     {
       "src": "/create-room",
+      "methods": ["POST"],
+      "dest": "server/index.js"
+    },
+    {
+      "src": "/heartbeat",
+      "methods": ["POST"],
       "dest": "server/index.js"
     },
     {
