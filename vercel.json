@@ -15,6 +15,10 @@
   ],
   "routes": [
     {
+      "src": "/create-room",
+      "dest": "server/index.js"
+    },
+    {
       "src": "/get-agora-token",
       "methods": ["POST", "GET"],
       "dest": "server/index.js"
