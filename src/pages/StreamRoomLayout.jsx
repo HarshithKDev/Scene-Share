@@ -30,7 +30,6 @@ const CardContent = ({ children, className = '' }) => (
   <div className={`p-2 ${className}`}>{children}</div>
 );
 
-// --- MODIFICATION: Simplified props for clarity and correctness ---
 const ParticipantCard = ({ user, isSelf, selfViewTrack, micOn, videoOn, isActiveSpeaker, isHostCard, participantDetails }) => {
   const displayName = isSelf
     ? `${user.displayName || 'You'}`
@@ -43,6 +42,7 @@ const ParticipantCard = ({ user, isSelf, selfViewTrack, micOn, videoOn, isActive
       <CardContent className="flex flex-col gap-2">
         <div className={videoContainerClasses}>
           {isSelf ? (
+            // Logic for the local user (yourself)
             selfViewTrack && (
               <>
                 <LocalVideoTrack
@@ -58,11 +58,22 @@ const ParticipantCard = ({ user, isSelf, selfViewTrack, micOn, videoOn, isActive
               </>
             )
           ) : (
-            // This RemoteUser component is the key part. It should only receive the 'user' prop.
-            <RemoteUser user={user} playVideo={true} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            // --- MODIFICATION START: Correct logic for remote users ---
+            <>
+              <RemoteUser 
+                user={user} 
+                playVideo={user.hasVideo} // Control playback directly with this prop
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+              />
+              {!user.hasVideo && (
+                <div className="absolute inset-0 flex items-center justify-center bg-neutral-800">
+                  <VideoOff className="w-8 h-8 text-neutral-500" />
+                </div>
+              )}
+            </>
+            // --- MODIFICATION END ---
           )}
 
-          {/* This logic remains for the crown icon */}
           {isHostCard && (
             <div className="absolute top-1 left-1 p-1 bg-black/50 rounded">
               <Crown className="w-4 h-4 text-yellow-400" />
