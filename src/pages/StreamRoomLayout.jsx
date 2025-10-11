@@ -9,7 +9,7 @@ import { Copy, Mic, MicOff, Video, VideoOff, Monitor, X, Crown, LogOut, Play, Wi
 
 const Button = ({ children, onClick, variant = 'default', size = 'default', className = '' }) => {
   const baseClasses = 'inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none ring-offset-background';
-  
+
   const variants = {
     default: 'bg-neutral-700 text-white hover:bg-neutral-600',
     destructive: 'bg-red-600 text-white hover:bg-red-700',
@@ -42,7 +42,7 @@ const CardContent = ({ children, className = '' }) => (
 
 const ParticipantCard = ({ user, isSelf, isHost, selfViewTrack, micOn, videoOn, toggleMic, toggleVideo, isActiveSpeaker }) => {
   const displayName = isSelf ? `${user.displayName || 'You'}` : `User-${user.uid.toString().substring(0, 4)}`;
-  
+
   const videoContainerClasses = `relative w-full aspect-video bg-neutral-800 rounded-md flex items-center justify-center overflow-hidden transition-all duration-300 ${isActiveSpeaker ? 'ring-2 ring-green-500 ring-offset-2 ring-offset-neutral-900' : ''}`;
 
   return (
@@ -50,11 +50,24 @@ const ParticipantCard = ({ user, isSelf, isHost, selfViewTrack, micOn, videoOn, 
       <CardContent className="flex flex-col gap-2">
         <div className={videoContainerClasses}>
           {isSelf ? (
-            videoOn && selfViewTrack ? (
-              <LocalVideoTrack track={selfViewTrack} play={true} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-            ) : (
-              <VideoOff className="w-8 h-8 text-neutral-500" />
+            // --- FIX START ---
+            // Keep LocalVideoTrack mounted and control it with props and CSS.
+            selfViewTrack && (
+              <>
+                <LocalVideoTrack
+                  track={selfViewTrack}
+                  play={videoOn}
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover',
+                    display: videoOn ? 'block' : 'none', // Hide element when camera is off
+                  }}
+                />
+                {!videoOn && <VideoOff className="w-8 h-8 text-neutral-500" />}
+              </>
             )
+            // --- FIX END ---
           ) : (
             user.hasVideo ? (
               <RemoteUser user={user} playVideo={true} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -130,7 +143,7 @@ const StreamRoomLayout = ({
       setTimeout(() => setCopied(false), 2000);
     });
   };
-  
+
   useEffect(() => {
     const container = mainVideoContainerRef.current;
     if (container && hostScreenUser?.videoTrack) {
@@ -154,7 +167,7 @@ const StreamRoomLayout = ({
             <Copy className='w-4 h-4' />
           </Button>
         </div>
-        
+
         <div className="flex flex-col gap-4 overflow-y-auto">
           <ParticipantCard
             user={user}
@@ -167,11 +180,11 @@ const StreamRoomLayout = ({
             toggleVideo={toggleCamera}
             isActiveSpeaker={activeSpeakerUid === user.uid}
           />
-          
+
           {participantUsers.map(remoteUser => (
-            <ParticipantCard 
-              key={remoteUser.uid} 
-              user={remoteUser} 
+            <ParticipantCard
+              key={remoteUser.uid}
+              user={remoteUser}
               isActiveSpeaker={activeSpeakerUid === remoteUser.uid}
             />
           ))}
@@ -182,7 +195,7 @@ const StreamRoomLayout = ({
       <div className='flex-1 flex flex-col'>
         <main className='flex-1 flex items-center justify-center bg-neutral-900 relative p-4'>
           <ConnectionStateOverlay state={connectionState} />
-          
+
           {connectionState === 'CONNECTED' && (
             <>
               {isMoviePlaying && hostScreenUser?.videoTrack ? (
@@ -203,7 +216,7 @@ const StreamRoomLayout = ({
               </div>
           )}
         </main>
-        
+
         <footer className="flex justify-center items-center p-4 border-t border-neutral-800 bg-neutral-950 gap-4">
             {isHost && (
                 isMoviePlaying ? (

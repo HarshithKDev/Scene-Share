@@ -21,7 +21,6 @@ const Room = () => {
 
     const isHost = state?.isHost || false;
 
-    // --- FIX: Create and manage the client instance here ---
     const agoraClient = useMemo(() => 
         AgoraRTC.createClient({ codec: "vp8", mode: "rtc" }),
         []
@@ -76,17 +75,17 @@ const Room = () => {
         );
     }
     
-    // The provider now gets the client we created
     return agoraToken ? (
         <AgoraRTCProvider client={agoraClient}>
             <StreamRoomPage
                 key={`${user.uid}-${roomId}`}
                 isHost={isHost}
                 roomId={roomId}
+                // --- FIX: Use the correct state variable 'agoraToken' ---
                 token={agoraToken}
                 onLeaveRoom={handleLeaveRoom}
                 appId={import.meta.env.VITE_AGORA_APP_ID}
-                client={agoraClient} // Pass the client down as a prop
+                client={agoraClient}
             />
         </AgoraRTCProvider>
     ) : null;

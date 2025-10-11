@@ -4,11 +4,9 @@ import AgoraRTC from "agora-rtc-sdk-ng";
 import { useRemoteUsers, useRemoteAudioTracks, useConnectionState } from "agora-rtc-react";
 import { sendHeartbeat } from '../services/agoraApi';
 
-// --- FIX: Accept the manually created client as a prop ---
 export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, client: agoraClient, fetchAgoraToken, onTokenError }) => {
   const [screenClient, setScreenClient] = useState(null);
-  
-  // These hooks can still be used as they read from the provider, which now gets the correct client
+
   const connectionState = useConnectionState();
   const remoteUsers = useRemoteUsers();
   const { audioTracks } = useRemoteAudioTracks(remoteUsers);
@@ -41,7 +39,7 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, client:
   const screenVideoTrackRef = useRef(null);
   const screenAudioTrackRef = useRef(null);
   const dataStreamRef = useRef(null);
-  
+
   const initializationRef = useRef({
     hasJoined: false,
     isInitializing: false,
@@ -72,26 +70,26 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, client:
         sessionStorage.setItem('isMoviePlaying', JSON.stringify(isMoviePlaying));
     }
   }, [isMoviePlaying, isHost]);
-  
+
   const validateToken = useCallback((token, appId, channelName, uid) => {
     if (!token) {
       console.error('❌ Token is null or undefined');
       return false;
     }
-    
+
     if (typeof token !== 'string') {
       console.error('❌ Token is not a string:', typeof token);
       return false;
     }
-    
+
     console.log('✅ Token validation passed - length:', token.length);
     return true;
   }, []);
 
   useEffect(() => {
     if (isHost && !screenClient) {
-      const newScreenClient = AgoraRTC.createClient({ 
-        codec: "vp8", 
+      const newScreenClient = AgoraRTC.createClient({
+        codec: "vp8",
         mode: "rtc",
       });
       setScreenClient(newScreenClient);
@@ -100,19 +98,19 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, client:
 
   const handleUserPublished = useCallback(async (user, mediaType) => {
     console.log('📡 User published:', user.uid, mediaType, 'isScreen:', user.uid.toString().endsWith('-screen'));
-    
+
     try {
       await agoraClient.subscribe(user, mediaType);
       console.log('✅ Subscribed to:', user.uid, mediaType);
-      
+
       const isScreenClient = user.uid.toString().endsWith('-screen');
-      
+
       if (isScreenClient) {
         console.log('🎯 FOUND SCREEN SHARE USER:', user.uid);
         setHostScreenUser(user);
         setIsMoviePlaying(true);
         setScreenShareError(null);
-        
+
         if (mediaType === 'video' && user.videoTrack) {
           user.videoTrack.on('track-ended', () => {
             console.log('📺 Screen share track ended');
@@ -134,7 +132,7 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, client:
 
   const handleUserUnpublished = useCallback((user, mediaType) => {
     console.log('📡 User unpublished:', user.uid, mediaType);
-    
+
     const isScreenClient = user.uid.toString().endsWith('-screen');
     if (isScreenClient && mediaType === 'video') {
       console.log('🎯 Screen share ended');
@@ -146,7 +144,7 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, client:
 
   const handleUserLeft = useCallback((user) => {
     console.log('👤 User left:', user.uid);
-    
+
     const isScreenClient = user.uid.toString().endsWith('-screen');
     if (isScreenClient) {
       console.log('🎯 Screen share user left');
@@ -154,7 +152,7 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, client:
       setIsMoviePlaying(false);
       setScreenShareError(null);
     }
-    
+
     if (hostCameraUser && hostCameraUser.uid === user.uid) {
       setHostCameraUser(null);
     }
@@ -169,7 +167,7 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, client:
         }
         return false;
       });
-      
+
       if (screenUser) {
         setHostScreenUser(screenUser);
         setIsMoviePlaying(true);
@@ -222,9 +220,9 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, client:
       let streamId = dataStreamRef.current;
       if (!streamId && agoraClient.createDataStream) {
         try {
-          streamId = await agoraClient.createDataStream({ 
-            reliable: true, 
-            ordered: true 
+          streamId = await agoraClient.createDataStream({
+            reliable: true,
+            ordered: true
           });
           dataStreamRef.current = streamId;
         } catch (error) {
@@ -254,10 +252,10 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, client:
         screenAudioTrackRef.current.stop();
         screenAudioTrackRef.current.close();
       }
-      
+
       screenVideoTrackRef.current = null;
       screenAudioTrackRef.current = null;
-      
+
       if (screenClient.connectionState === 'CONNECTED') {
         await screenClient.leave();
       }
@@ -267,9 +265,9 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, client:
       setHostScreenUser(null);
       setScreenShareError(null);
       initializationRef.current.screenClientJoined = false;
-      
+
       await sendStreamMessage({ type: 'MOVIE_STOP' });
-      
+
     } catch (error) {
       console.error("Error stopping movie:", error);
     }
@@ -308,7 +306,7 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, client:
       const [videoTrack, audioTrack] = Array.isArray(screenTrack) ? screenTrack : [screenTrack];
 
       await screenClient.join(appId, roomId, screenToken, screenUid);
-      
+
       const tracksToPublish = [videoTrack];
       if (audioTrack) tracksToPublish.push(audioTrack);
 
@@ -321,14 +319,14 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, client:
 
       setIsMoviePlaying(true);
       initializationRef.current.screenClientJoined = true;
-      
-      await sendStreamMessage({ 
+
+      await sendStreamMessage({
         type: 'MOVIE_START',
         screenUid: screenUid,
         hostUid: user.uid,
         timestamp: Date.now()
       });
-      
+
     } catch (error) {
       console.error("❌ Error starting screen share:", error);
       setIsMoviePlaying(false);
@@ -341,10 +339,10 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, client:
 
   // Main client initialization
   useEffect(() => {
-    const shouldInitialize = 
-      agoraClient && 
-      token && 
-      !initializationRef.current.hasJoined && 
+    const shouldInitialize =
+      agoraClient &&
+      token &&
+      !initializationRef.current.hasJoined &&
       !initializationRef.current.isInitializing;
 
     if (!shouldInitialize) return;
@@ -357,18 +355,18 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, client:
         if (!validateToken(token, appId, roomId, user.uid)) {
           throw new Error('Invalid token provided');
         }
-        
+
         const handleVolumeIndicator = (volumes) => {
             let maxVolume = 0;
             let speakerUid = null;
-    
+
             volumes.forEach((volume) => {
             if (volume.level > maxVolume && volume.level > 5) {
                 maxVolume = volume.level;
                 speakerUid = volume.uid === 0 ? user.uid : volume.uid;
             }
             });
-            
+
             setActiveSpeakerUid(speakerUid);
         };
 
@@ -378,11 +376,9 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, client:
         agoraClient.on('token-privilege-will-expire', handleTokenPrivilegeWillExpire);
         agoraClient.on('token-privilege-did-expire', handleTokenPrivilegeDidExpire);
         agoraClient.on("volume-indicator", handleVolumeIndicator);
-        
+
         await agoraClient.join(appId, roomId, token, user.uid);
 
-        agoraClient.enableAudioVolumeIndication();
-        
         let micTrack, camTrack;
         try {
             [micTrack, camTrack] = await AgoraRTC.createMicrophoneAndCameraTracks(
@@ -392,21 +388,21 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, client:
         } catch (mediaError) {
             console.error("❌ CRITICAL: Failed to create media tracks.", mediaError);
             setConnectionError(`Could not access camera or microphone. Error: ${mediaError.message}`);
-            return; 
+            return;
         }
-        
+
         await micTrack.setEnabled(micOn);
         await camTrack.setEnabled(cameraOn);
 
         localMicrophoneTrackRef.current = micTrack;
         localCameraTrackRef.current = camTrack;
         setSelfViewTrack(camTrack);
-        
+
         await agoraClient.publish([micTrack, camTrack]);
-        
+
         setDataStreamReady(true);
         initializationRef.current.hasJoined = true;
-        
+
       } catch (error) {
         console.error("❌ Failed to initialize and join:", error);
         setConnectionError(`Failed to join room: ${error.message || 'Unknown connection error'}`);
@@ -430,18 +426,18 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, client:
         localCameraTrackRef.current.stop();
         localCameraTrackRef.current.close();
       }
-      
+
       agoraClient.removeAllListeners();
 
       if (initializationRef.current.hasJoined) {
         agoraClient.leave();
       }
-      
+
       initializationRef.current.hasJoined = false;
       initializationRef.current.isInitializing = false;
     };
-  }, [agoraClient, appId, roomId, token, user, handleUserPublished, handleUserUnpublished, handleUserLeft, handleTokenPrivilegeWillExpire, handleTokenPrivilegeDidExpire, onTokenError, validateToken, micOn, cameraOn]);
-  
+  }, [agoraClient, appId, roomId, token, user, handleUserPublished, handleUserUnpublished, handleUserLeft, handleTokenPrivilegeWillExpire, handleTokenPrivilegeDidExpire, onTokenError, validateToken]);
+
   const toggleCamera = useCallback(async () => {
     if (localCameraTrackRef.current) {
       const newState = !cameraOn;
