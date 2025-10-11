@@ -4,6 +4,26 @@ import AgoraRTC from "agora-rtc-sdk-ng";
 import { useRemoteUsers, useRemoteAudioTracks, useConnectionState } from "agora-rtc-react";
 import { sendHeartbeat } from '../services/agoraApi';
 
+// --- HELPER: Promise with a timeout ---
+const withTimeout = (promise, ms) => {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error('Operation timed out'));
+    }, ms);
+
+    promise
+      .then(value => {
+        clearTimeout(timer);
+        resolve(value);
+      })
+      .catch(reason => {
+        clearTimeout(timer);
+        reject(reason);
+      });
+  });
+};
+
+
 export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, client: agoraClient, fetchAgoraToken, onTokenError }) => {
   const [screenClient, setScreenClient] = useState(null);
 
@@ -180,7 +200,7 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, client:
     console.log('🔑 Token will expire soon, renewing...');
     try {
       if (fetchAgoraToken) {
-        const newToken = await fetchAgoraToken(roomId, user.uid);
+        const { token: newToken } = await fetchAgoraToken(roomId, user.uid);
         if (newToken) {
           await agoraClient.renewToken(newToken);
           console.log('✅ Token renewed successfully');
@@ -195,7 +215,7 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, client:
     console.log('🔑 Token expired, attempting to renew...');
     try {
       if (fetchAgoraToken) {
-        const newToken = await fetchAgoraToken(roomId, user.uid);
+        const { token: newToken } = await fetchAgoraToken(roomId, user.uid);
         if (newToken) {
           await agoraClient.renewToken(newToken);
           console.log('✅ Token renewed after expiration');
@@ -275,20 +295,19 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, client:
 
   const createScreenTrack = useCallback(async () => {
     try {
-      try {
-        return await AgoraRTC.createScreenVideoTrack({
-          encoderConfig: "1080p_1",
-          optimizationMode: "detail",
-          withAudio: true,
-        }, "enable");
-      } catch (audioError) {
+      return await AgoraRTC.createScreenVideoTrack({
+        encoderConfig: "1080p_1",
+        optimizationMode: "detail",
+        withAudio: "enable",
+      });
+    } catch (error) {
+      if (error.code === 'SCREEN_SHARING_NOT_SUPPORTED') {
         return await AgoraRTC.createScreenVideoTrack({
           encoderConfig: "1080p_1",
           optimizationMode: "detail",
         }, "disable");
       }
-    } catch (error) {
-      return await AgoraRTC.createScreenVideoTrack({}, "disable");
+      throw error;
     }
   }, []);
 
@@ -296,14 +315,16 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, client:
     if (!isHost || isStartingStream || !screenClient) return;
 
     setIsStartingStream(true);
+    setScreenShareError(null);
     const screenUid = `${user.uid}-screen`;
 
     try {
-      const screenToken = await fetchAgoraToken(roomId, screenUid);
-      if (!screenToken) throw new Error('No token for screen client');
-
-      const screenTrack = await createScreenTrack();
+      // --- FIX: Wrap the permission request in a timeout ---
+      const screenTrack = await withTimeout(createScreenTrack(), 30000); // 30-second timeout
       const [videoTrack, audioTrack] = Array.isArray(screenTrack) ? screenTrack : [screenTrack];
+
+      const { token: screenToken } = await fetchAgoraToken(roomId, screenUid);
+      if (!screenToken) throw new Error('No token for screen client');
 
       await screenClient.join(appId, roomId, screenToken, screenUid);
 
@@ -329,9 +350,18 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, client:
 
     } catch (error) {
       console.error("❌ Error starting screen share:", error);
+
+      if (error && error.message && (error.message.includes("Permission denied") || error.message.includes("NotAllowedError"))) {
+        console.log('User cancelled screen share.');
+      } else if (error && error.message && error.message.includes('timed out')) {
+        setScreenShareError('Screen share request timed out. The browser may be blocking requests. Please refresh the page and try again.');
+      }
+      else {
+        setScreenShareError(`Failed to start screen share: ${error.message}`);
+      }
+
       setIsMoviePlaying(false);
       setScreenVideoTrack(null);
-      setScreenShareError(`Failed to start screen share: ${error.message}`);
     } finally {
       setIsStartingStream(false);
     }
@@ -476,6 +506,8 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, client:
     handleStartStream,
     handleStopMovie,
     sendStreamMessage,
-    activeSpeakerUid
+    activeSpeakerUid,
+    isStartingStream // Don't forget to export the new state
   };
 };
+

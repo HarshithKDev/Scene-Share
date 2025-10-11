@@ -1,4 +1,4 @@
-// server/index.js - FINAL VERSION
+// server/index.js
 const express = require('express');
 const { RtcTokenBuilder, RtcRole } = require('agora-token');
 const cors = require('cors');
@@ -21,7 +21,7 @@ try {
 
 const db = admin.firestore();
 const roomsCollection = db.collection('rooms');
-const EXPIRATION_HOURS = 24; // Rooms will expire after 24 hours of inactivity
+const EXPIRATION_HOURS = 24;
 
 const verifyFirebaseToken = async (req, res, next) => {
   const authHeader = req.headers.authorization;
@@ -51,7 +51,7 @@ app.post('/create-room', verifyFirebaseToken, async (req, res) => {
         await roomsCollection.doc(channelName).set({
             hostUid: uid,
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
-            expiresAt: admin.firestore.Timestamp.fromDate(expirationDate), // --- ADD EXPIRATION ---
+            expiresAt: admin.firestore.Timestamp.fromDate(expirationDate),
         });
         console.log(`✅ Room created: [${channelName}], expires at ${expirationDate.toISOString()}`);
         res.status(201).json({ message: 'Room created successfully.' });
@@ -61,7 +61,6 @@ app.post('/create-room', verifyFirebaseToken, async (req, res) => {
     }
 });
 
-// --- NEW HEARTBEAT ENDPOINT ---
 app.post('/heartbeat', verifyFirebaseToken, async (req, res) => {
   const { channelName } = req.body;
   const { uid } = req.user;
@@ -97,7 +96,6 @@ app.post('/heartbeat', verifyFirebaseToken, async (req, res) => {
 
 
 app.post('/get-agora-token', verifyFirebaseToken, async (req, res) => {
-  // ... (this endpoint remains the same as before)
   const { channelName } = req.body;
   const { uid: requestingUid } = req.user;
 
@@ -118,6 +116,7 @@ app.post('/get-agora-token', verifyFirebaseToken, async (req, res) => {
       return res.status(500).json({ error: 'Failed to get room details.' });
   }
 
+  // --- FIX: Determine if the requesting user is the host ---
   const isHost = hostUid === requestingUid;
   const isScreenShare = req.body.uid && req.body.uid.endsWith('-screen');
   const tokenUid = isScreenShare ? req.body.uid : requestingUid;
@@ -152,6 +151,7 @@ app.post('/get-agora-token', verifyFirebaseToken, async (req, res) => {
       privilegeExpiredTs
     );
 
+    // --- FIX: Include the 'isHost' boolean in the response ---
     res.status(200).json({ token, uid: sanitizedTokenUid, isHost });
   } catch (error) {
     console.error('❌ Error generating Agora token:', error);
@@ -161,7 +161,6 @@ app.post('/get-agora-token', verifyFirebaseToken, async (req, res) => {
 
 
 app.get('/health', async (req, res) => {
-  // ... (this endpoint remains the same)
   let activeRooms = 0;
   try {
       const snapshot = await roomsCollection.get();

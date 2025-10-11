@@ -7,7 +7,7 @@ import { Copy, Mic, MicOff, Video, VideoOff, Monitor, X, Crown, LogOut, Play, Wi
 
 // --- Reusable UI Components (like shadcn/ui) ---
 
-const Button = ({ children, onClick, variant = 'default', size = 'default', className = '' }) => {
+const Button = ({ children, onClick, variant = 'default', size = 'default', className = '', ...props }) => {
   const baseClasses = 'inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none ring-offset-background';
 
   const variants = {
@@ -22,7 +22,7 @@ const Button = ({ children, onClick, variant = 'default', size = 'default', clas
   };
 
   return (
-    <button onClick={onClick} className={`${baseClasses} ${variants[variant]} ${sizes[size]} ${className}`}>
+    <button onClick={onClick} className={`${baseClasses} ${variants[variant]} ${sizes[size]} ${className}`} {...props}>
       {children}
     </button>
   );
@@ -50,8 +50,6 @@ const ParticipantCard = ({ user, isSelf, isHost, selfViewTrack, micOn, videoOn, 
       <CardContent className="flex flex-col gap-2">
         <div className={videoContainerClasses}>
           {isSelf ? (
-            // --- FIX START ---
-            // Keep LocalVideoTrack mounted and control it with props and CSS.
             selfViewTrack && (
               <>
                 <LocalVideoTrack
@@ -61,13 +59,12 @@ const ParticipantCard = ({ user, isSelf, isHost, selfViewTrack, micOn, videoOn, 
                     width: '100%',
                     height: '100%',
                     objectFit: 'cover',
-                    display: videoOn ? 'block' : 'none', // Hide element when camera is off
+                    display: videoOn ? 'block' : 'none',
                   }}
                 />
                 {!videoOn && <VideoOff className="w-8 h-8 text-neutral-500" />}
               </>
             )
-            // --- FIX END ---
           ) : (
             user.hasVideo ? (
               <RemoteUser user={user} playVideo={true} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -127,7 +124,7 @@ const ConnectionStateOverlay = ({ state }) => {
 const StreamRoomLayout = ({
   isHost, selfViewTrack, remoteUsers, toggleMic, toggleCamera, micOn, cameraOn, handleLeave,
   handleStartStream, isMoviePlaying, roomId, handleStopMovie, hostScreenUser, screenShareError,
-  activeSpeakerUid, connectionState
+  activeSpeakerUid, connectionState, isStartingStream // --- Accept the new prop ---
 }) => {
   const { user } = useAuth();
   const { addToast } = useToast();
@@ -225,9 +222,10 @@ const StreamRoomLayout = ({
                         Stop Stream
                     </Button>
                 ) : (
-                    <Button onClick={handleStartStream} className="px-6 py-5 text-base font-semibold bg-blue-600 hover:bg-blue-700">
+                    // --- FIX: Add the disabled prop to the button ---
+                    <Button onClick={handleStartStream} disabled={isStartingStream} className="px-6 py-5 text-base font-semibold bg-blue-600 hover:bg-blue-700">
                         <Play className='w-5 h-5 mr-2' />
-                        Start Stream
+                        {isStartingStream ? 'Starting...' : 'Start Stream'}
                     </Button>
                 )
             )}

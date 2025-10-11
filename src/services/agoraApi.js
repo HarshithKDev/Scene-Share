@@ -29,11 +29,11 @@ export const sendHeartbeat = async (channelName, getIdToken) => {
 
 
 /**
- * Fetches an Agora RTC token from the server.
+ * Fetches an Agora RTC token and host status from the server.
  * @param {string} channelName - The name of the channel to join.
  * @param {string} uid - The user ID.
  * @param {Function} getIdToken - A function to get the Firebase auth token.
- * @returns {Promise<string>} The Agora token.
+ * @returns {Promise<object>} An object containing the Agora token and isHost boolean.
  */
 export const fetchAgoraToken = async (channelName, uid, getIdToken) => {
     if (!getIdToken) {
@@ -67,8 +67,9 @@ export const fetchAgoraToken = async (channelName, uid, getIdToken) => {
             throw new Error('No token received from server');
         }
 
-        console.log('✅ Token received successfully for UID:', uid);
-        return data.token;
+        console.log('✅ Token and host status received successfully for UID:', uid);
+        // --- FIX: Return the entire data object ---
+        return data;
     } catch (error) {
         console.error("❌ Error fetching Agora token:", error);
         throw error;

@@ -1,6 +1,6 @@
 // src/components/routes/Room.jsx
 import React, { useState, useEffect, useCallback, lazy, useMemo } from 'react';
-import { useParams, useLocation, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { fetchAgoraToken } from '../../services/agoraApi';
 import { AgoraRTCProvider } from "agora-rtc-react";
@@ -11,16 +11,14 @@ const StreamRoomPage = lazy(() => import('../../pages/StreamRoomPage'));
 
 const Room = () => {
     const { roomId } = useParams();
-    const { state } = useLocation();
     const navigate = useNavigate();
     const { user } = useAuth();
 
     const [agoraToken, setAgoraToken] = useState(null);
+    const [isHost, setIsHost] = useState(null); // State for host status
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-
-    const isHost = state?.isHost || false;
-
+    
     const agoraClient = useMemo(() => 
         AgoraRTC.createClient({ codec: "vp8", mode: "rtc" }),
         []
@@ -31,8 +29,10 @@ const Room = () => {
             setLoading(true);
             setError(null);
             try {
-                const token = await fetchAgoraToken(roomId, user.uid, () => user.getIdToken());
-                setAgoraToken(token);
+                // The API now returns an object with { token, isHost }
+                const data = await fetchAgoraToken(roomId, user.uid, () => user.getIdToken());
+                setAgoraToken(data.token);
+                setIsHost(data.isHost); // Set host status from the server's response
             } catch (err) {
                 console.error('Token fetch error:', err);
                 if (err.message.includes('404')) {
@@ -52,7 +52,8 @@ const Room = () => {
 
     const handleLeaveRoom = () => navigate('/');
 
-    if (loading) {
+    // Show loading indicator until both token and host status are determined
+    if (loading || isHost === null) {
         return (
             <div className="min-h-screen bg-neutral-950 flex items-center justify-center text-white">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
@@ -81,7 +82,6 @@ const Room = () => {
                 key={`${user.uid}-${roomId}`}
                 isHost={isHost}
                 roomId={roomId}
-                // --- FIX: Use the correct state variable 'agoraToken' ---
                 token={agoraToken}
                 onLeaveRoom={handleLeaveRoom}
                 appId={import.meta.env.VITE_AGORA_APP_ID}
