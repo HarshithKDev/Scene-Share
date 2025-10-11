@@ -5,6 +5,7 @@ import { sanitizeInput } from '../utils/sanitize';
 import ThemeToggle from '../components/ThemeToggle';
 import { useTheme } from '../context/ThemeContext';
 import { Button } from '../components/ui/Button';
+// --- FIX: Corrected the import path for Card components ---
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/Card';
 import { Plus, LogIn, User, LogOut } from 'lucide-react';
 
@@ -22,7 +23,7 @@ const LobbyPage = ({ onCreateRoom, onJoinRoom, onEditUsername }) => {
 
   return (
     <div className="min-h-screen bg-neutral-950 text-white transition-colors duration-300">
-       <header className="absolute top-0 left-0 right-0 p-6 flex justify-between items-center">
+       <header className="absolute top-0 left-0 right-0 p-6 flex justify-between items-center z-20">
           <h1 className="text-xl font-bold">Scene-Share</h1>
           <div className="flex items-center gap-2">
             <ThemeToggle theme={theme} toggleTheme={toggleTheme} />
@@ -43,9 +44,9 @@ const LobbyPage = ({ onCreateRoom, onJoinRoom, onEditUsername }) => {
           </div>
        </header>
 
-       <main className="container mx-auto px-4 min-h-screen flex flex-col items-center justify-center">
+       <main className="container mx-auto px-4 min-h-screen flex flex-col items-center justify-center pt-28 pb-12">
          <div className="text-center mb-12">
-           <h2 className="text-5xl font-bold tracking-tight">
+           <h2 className="text-4xl sm:text-5xl font-bold tracking-tight">
              Welcome, {user?.displayName || 'User'}!
            </h2>
            <p className="text-neutral-400 text-xl mt-2">
