@@ -1,4 +1,3 @@
-// src/components/Toast.jsx
 import React from 'react';
 import { XCircle, CheckCircle, Info, AlertTriangle } from 'lucide-react';
 
@@ -11,18 +10,17 @@ const Toast = ({ message, type = 'info', onDismiss }) => {
     };
 
     return (
-        // --- FIX: Added 'justify-center' to center the content inside the toast ---
-        <div className="bg-neutral-800 text-white p-4 rounded-md shadow-lg flex justify-center items-center gap-3 animate-fade-in-down min-w-[300px]">
+        <div className="bg-neutral-800 text-white py-3 px-5 rounded-full shadow-lg flex items-center gap-3 animate-fade-in-down">
             {icons[type]}
-            <span>{message}</span>
+            <span className="whitespace-nowrap text-sm font-medium">{message}</span>
         </div>
     );
 };
 
 export const ToastContainer = ({ toasts, removeToast }) => {
     return (
-        // --- FIX: Ensured the container itself is perfectly centered ---
-        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-2">
+        // --- MODIFICATION: Moved the container down to avoid overlapping the header ---
+        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-2 px-4">
             {(toasts || []).map((toast) => (
                 <Toast 
                     key={toast.id} 
@@ -36,3 +34,4 @@ export const ToastContainer = ({ toasts, removeToast }) => {
 };
 
 export default Toast;
+

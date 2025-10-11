@@ -2,8 +2,9 @@
 import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
-import { useToast } from './context/ToastContext'; // --- IMPORT useToast ---
-import { updateProfile } from 'firebase/auth';
+import { useToast } from './context/ToastContext';
+// --- FIX: Import auth and updateProfile from your project's firebase setup file ---
+import { auth, updateProfile } from './firebase';
 import { sanitizeInput } from './utils/sanitize';
 
 import ErrorBoundary from './components/ErrorBoundary'; 
@@ -30,7 +31,7 @@ export default function App() {
   const [showUsernameModal, setShowUsernameModal] = useState(false);
   const [isNewUser, setIsNewUser] = useState(false);
   const navigate = useNavigate();
-  const { addToast } = useToast(); // --- USE the hook ---
+  const { addToast } = useToast();
 
   useEffect(() => {
     if (user) {
@@ -44,28 +45,35 @@ export default function App() {
   }, [user]);
 
   const handleUpdateUsername = async (newUsername) => {
-    if (!user) return;
+    // --- MODIFICATION START ---
+    // Use auth.currentUser directly to ensure you have the full Firebase user object.
+    if (!auth.currentUser) return;
     const sanitizedUsername = sanitizeInput(newUsername);
     if (sanitizedUsername) {
       try {
-        await updateProfile(user, { displayName: sanitizedUsername });
-        const updatedUser = { ...user, displayName: sanitizedUsername };
-        setUser(updatedUser); 
+        await updateProfile(auth.currentUser, { displayName: sanitizedUsername });
+        
+        // After updating, set the context with the fresh auth.currentUser object,
+        // which has all the necessary methods like getIdToken. This prevents the error.
+        setUser(auth.currentUser);
+        
         setShowUsernameModal(false);
         setIsNewUser(false);
-        addToast('Username updated successfully!', 'success'); // Success feedback
+        addToast('Username updated successfully!', 'success');
       } catch (error) {
         console.error("Error updating profile: ", error);
-        addToast(`Error updating username: ${error.message}`, 'error'); // Error feedback
+        addToast(`Error updating username: ${error.message}`, 'error');
       }
     }
+    // --- MODIFICATION END ---
   };
 
   const handleCreateRoom = async () => {
     const roomCode = Math.floor(100000 + Math.random() * 900000).toString();
     try {
-        const idToken = await user.getIdToken();
-        const response = await fetch(`${BACKEND_URL}/create-room`, { // --- Capture response ---
+        // Now this will work every time because the user object is correct.
+        const idToken = await user.getIdToken(); 
+        const response = await fetch(`${BACKEND_URL}/create-room`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -74,26 +82,23 @@ export default function App() {
             body: JSON.stringify({ channelName: roomCode }),
         });
 
-        // --- NEW: Check if response is ok ---
         if (!response.ok) {
             const errorData = await response.json();
             throw new Error(errorData.error || 'Server responded with an error');
         }
 
-        navigate(`/room/${roomCode}`, { state: { isHost: true } }); // Navigate as host
+        navigate(`/room/${roomCode}`, { state: { isHost: true } });
     } catch (error) {
         console.error("Failed to create room on server:", error);
-        // --- NEW: Show a toast error to the user ---
         addToast(`Failed to create room: ${error.message}`, 'error');
     }
   };
 
   const handleJoinRoom = (id) => {
     const sanitizedId = sanitizeInput(id);
-    if (sanitizedId && sanitizedId.length >= 6) { // Basic validation
-      navigate(`/room/${sanitizedId}`, { state: { isHost: false } }); // Navigate as participant
+    if (sanitizedId && sanitizedId.length >= 6) {
+      navigate(`/room/${sanitizedId}`, { state: { isHost: false } });
     } else {
-      // --- NEW: Show a toast for invalid input ---
       addToast('Please enter a valid Room ID.', 'error');
     }
   };
