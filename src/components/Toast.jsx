@@ -11,17 +11,18 @@ const Toast = ({ message, type = 'info', onDismiss }) => {
     };
 
     return (
-        <div className="bg-neutral-800 text-white p-4 rounded-md shadow-lg flex items-center gap-3 animate-fade-in-down">
+        // --- FIX: Added 'justify-center' to center the content inside the toast ---
+        <div className="bg-neutral-800 text-white p-4 rounded-md shadow-lg flex justify-center items-center gap-3 animate-fade-in-down min-w-[300px]">
             {icons[type]}
             <span>{message}</span>
         </div>
     );
 };
 
-// FIX: Define and export the ToastContainer component
 export const ToastContainer = ({ toasts, removeToast }) => {
     return (
-        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-50 flex flex-col gap-2">
+        // --- FIX: Ensured the container itself is perfectly centered ---
+        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-2">
             {(toasts || []).map((toast) => (
                 <Toast 
                     key={toast.id} 

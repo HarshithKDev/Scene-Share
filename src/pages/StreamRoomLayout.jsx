@@ -62,13 +62,19 @@ const ParticipantCard = ({ user, isSelf, isHost, selfViewTrack, micOn, videoOn, 
               </div>
             )
           )}
+          {/* --- FIX: Crown icon is now inside the video container, top-left --- */}
+          {isHost && (
+            <div className="absolute top-1 left-1 p-1 bg-black/50 rounded">
+              <Crown className="w-4 h-4 text-yellow-400" />
+            </div>
+          )}
           <div className="absolute bottom-1 right-1 p-1 bg-black/50 rounded text-xs">
             {isSelf ? (micOn ? <Mic className="w-3 h-3" /> : <MicOff className="w-3 h-3 text-red-500" />) : (user.hasAudio ? <Mic className="w-3 h-3" /> : <MicOff className="w-3 h-3 text-red-500" />)}
           </div>
         </div>
-        <div className="flex items-center justify-between w-full text-xs">
-          <span className="font-semibold flex items-center gap-1.5 truncate">
-            {isHost && <Crown className="w-4 h-4 text-yellow-400" />}
+        {/* --- FIX: Participant name is now centered --- */}
+        <div className="flex items-center justify-center w-full text-xs">
+          <span className="font-semibold truncate">
             {displayName}
           </span>
         </div>
@@ -125,9 +131,7 @@ const StreamRoomLayout = ({
   return (
     <div className='flex flex-col h-screen bg-neutral-950 text-white'>
       
-      {/* --- Top Bar --- */}
-      <div className='flex items-center p-2 border-b border-neutral-800'>
-          {/* FIX: This group keeps the items together on the left */}
+      <div className='flex items-center justify-between p-2 border-b border-neutral-800'>
           <div className="flex items-center gap-3">
               <div className="flex flex-col">
                   <span className="text-xs text-neutral-400">ROOM</span>
@@ -137,7 +141,6 @@ const StreamRoomLayout = ({
           </div>
       </div>
 
-      {/* --- Main Content Area --- */}
       <main className='flex-1 flex items-center justify-center bg-neutral-900 relative p-2 md:p-4 min-h-0'>
         <ConnectionStateOverlay state={connectionState} />
         {connectionState === 'CONNECTED' && (
@@ -160,8 +163,7 @@ const StreamRoomLayout = ({
         )}
       </main>
       
-      {/* --- Participant List (Always horizontal) --- */}
-      <div className="flex overflow-x-auto p-2 gap-2 border-t border-neutral-800 bg-neutral-950">
+      <div className="flex justify-center overflow-x-auto p-2 gap-2 border-t border-neutral-800 bg-neutral-950">
           <ParticipantCard
               user={user} isSelf={true} isHost={isHost} selfViewTrack={selfViewTrack}
               micOn={micOn} videoOn={cameraOn}
@@ -172,7 +174,6 @@ const StreamRoomLayout = ({
           ))}
       </div>
       
-      {/* --- Footer / Controls --- */}
       <footer className="flex justify-center items-center p-3 md:p-4 border-t border-neutral-800 bg-neutral-950 relative">
         <div className="flex gap-4">
           <Button onClick={toggleMic} variant="ghost" size="icon">{micOn ? <Mic className='w-5 h-5' /> : <MicOff className='w-5 h-5 text-red-500' />}</Button>
