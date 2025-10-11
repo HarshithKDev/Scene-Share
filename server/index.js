@@ -16,7 +16,6 @@ try {
   });
 } catch (error) {
   console.error('Error initializing Firebase Admin SDK:', error);
-  process.exit(1);
 }
 
 const db = admin.firestore();
@@ -97,7 +96,7 @@ app.post('/heartbeat', verifyFirebaseToken, async (req, res) => {
 
 app.post('/get-agora-token', verifyFirebaseToken, async (req, res) => {
   const { channelName } = req.body;
-  const { uid: requestingUid } = req.user;
+  const { uid: requestingUid, name: displayName } = req.user;
 
   if (!channelName || typeof channelName !== 'string') {
     return res.status(400).json({ error: 'channelName is required and must be a string.' });
@@ -111,12 +110,18 @@ app.post('/get-agora-token', verifyFirebaseToken, async (req, res) => {
           return res.status(404).json({ error: 'Room not found.' });
       }
       hostUid = roomDoc.data().hostUid;
+
+      const participantRef = roomsCollection.doc(channelName).collection('participants').doc(requestingUid);
+      await participantRef.set({
+          displayName: displayName || `User-${requestingUid.substring(0, 4)}`,
+          lastSeen: admin.firestore.FieldValue.serverTimestamp()
+      }, { merge: true });
+
   } catch (error) {
-      console.error("Error getting room from Firestore:", error);
-      return res.status(500).json({ error: 'Failed to get room details.' });
+      console.error("Error getting room or updating participant:", error);
+      return res.status(500).json({ error: 'Failed to process room details.' });
   }
 
-  // --- FIX: Determine if the requesting user is the host ---
   const isHost = hostUid === requestingUid;
   const isScreenShare = req.body.uid && req.body.uid.endsWith('-screen');
   const tokenUid = isScreenShare ? req.body.uid : requestingUid;
@@ -150,9 +155,9 @@ app.post('/get-agora-token', verifyFirebaseToken, async (req, res) => {
       role,
       privilegeExpiredTs
     );
-
-    // --- FIX: Include the 'isHost' boolean in the response ---
-    res.status(200).json({ token, uid: sanitizedTokenUid, isHost });
+    
+    // --- MODIFICATION: Add hostUid to the response ---
+    res.status(200).json({ token, uid: sanitizedTokenUid, isHost, hostUid });
   } catch (error) {
     console.error('❌ Error generating Agora token:', error);
     res.status(500).json({ error: 'Failed to generate token: ' + error.message });
@@ -177,5 +182,13 @@ app.get('/health', async (req, res) => {
     timestamp: new Date().toISOString()
   });
 });
+
+// This block allows the server to run locally
+if (require.main === module) {
+  const PORT = process.env.PORT || 8080;
+  app.listen(PORT, () => {
+    console.log(`🚀 Server is running on port ${PORT}`);
+  });
+}
 
 module.exports = app;

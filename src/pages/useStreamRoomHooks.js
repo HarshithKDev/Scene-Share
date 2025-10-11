@@ -3,6 +3,8 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import AgoraRTC from "agora-rtc-sdk-ng";
 import { useRemoteUsers, useRemoteAudioTracks, useConnectionState } from "agora-rtc-react";
 import { sendHeartbeat } from '../services/agoraApi';
+import { db } from '../firebase';
+import { collection, onSnapshot } from 'firebase/firestore';
 
 // --- HELPER: Promise with a timeout ---
 const withTimeout = (promise, ms) => {
@@ -52,6 +54,7 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, client:
   const [screenVideoTrack, setScreenVideoTrack] = useState(null);
   const [screenShareError, setScreenShareError] = useState(null);
   const [activeSpeakerUid, setActiveSpeakerUid] = useState(null);
+  const [participantDetails, setParticipantDetails] = useState({});
 
 
   const localMicrophoneTrackRef = useRef(null);
@@ -65,6 +68,23 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, client:
     isInitializing: false,
     screenClientJoined: false
   });
+
+  // NEW EFFECT: Listen for participant details
+  useEffect(() => {
+    if (!roomId) return;
+
+    const participantsColRef = collection(db, 'rooms', roomId, 'participants');
+    
+    const unsubscribe = onSnapshot(participantsColRef, (snapshot) => {
+      const details = {};
+      snapshot.docs.forEach((doc) => {
+        details[doc.id] = doc.data();
+      });
+      setParticipantDetails(details);
+    });
+
+    return () => unsubscribe(); // Cleanup listener on component unmount
+  }, [roomId]);
 
   useEffect(() => {
     if (isHost && connectionState === 'CONNECTED') {
@@ -507,7 +527,7 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, client:
     handleStopMovie,
     sendStreamMessage,
     activeSpeakerUid,
-    isStartingStream // Don't forget to export the new state
+    isStartingStream,
+    participantDetails
   };
 };
-

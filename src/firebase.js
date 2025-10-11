@@ -8,11 +8,9 @@ import {
   GoogleAuthProvider,
   updateProfile
 } from "firebase/auth";
+import { getFirestore } from "firebase/firestore";
 
 // Your web app's Firebase configuration
-// IMPORTANT: Use environment variables to store your Firebase config.
-// Create a .env.local file in the root of your project and add your keys there.
-// Example: VITE_FIREBASE_API_KEY=your_api_key
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
@@ -26,10 +24,12 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
+const db = getFirestore(app);
 const googleProvider = new GoogleAuthProvider();
 
 export {
   auth,
+  db,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signInWithPopup,

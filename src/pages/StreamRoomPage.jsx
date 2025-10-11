@@ -5,12 +5,10 @@ import { useStreamRoomHooks } from './useStreamRoomHooks';
 import { useAuth } from '../context/AuthContext';
 import { fetchAgoraToken } from '../services/agoraApi';
 
-const StreamRoomPage = ({ isHost, roomId, token, onLeaveRoom, appId, client }) => {
+const StreamRoomPage = ({ isHost, hostUid, roomId, token, onLeaveRoom, appId, client }) => {
   const { user } = useAuth();
 
   const agoraTokenFetcher = useCallback((channel, uid) => {
-      // The service now returns an object, so we might need to adjust here if called elsewhere
-      // For now, this is primarily for the main hook which handles the full object.
       return fetchAgoraToken(channel, uid, () => user.getIdToken());
   }, [user]);
 
@@ -32,7 +30,8 @@ const StreamRoomPage = ({ isHost, roomId, token, onLeaveRoom, appId, client }) =
     handleStartStream,
     handleStopMovie,
     activeSpeakerUid,
-    isStartingStream // --- Add this state from the hook ---
+    isStartingStream,
+    participantDetails
   } = useStreamRoomHooks({
     isHost,
     roomId,
@@ -98,6 +97,7 @@ const StreamRoomPage = ({ isHost, roomId, token, onLeaveRoom, appId, client }) =
     <div className="min-h-screen bg-black">
       <StreamRoomLayout
         isHost={isHost}
+        hostUid={hostUid}
         selfViewTrack={selfViewTrack}
         remoteUsers={remoteUsers}
         toggleMic={toggleMic}
@@ -113,7 +113,8 @@ const StreamRoomPage = ({ isHost, roomId, token, onLeaveRoom, appId, client }) =
         hostScreenUser={hostScreenUser}
         screenShareError={screenShareError}
         activeSpeakerUid={activeSpeakerUid}
-        isStartingStream={isStartingStream} // --- Pass the state down ---
+        isStartingStream={isStartingStream}
+        participantDetails={participantDetails}
       />
     </div>
   );

@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { LocalVideoTrack, RemoteUser } from "agora-rtc-react";
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { Copy, Mic, MicOff, Video, VideoOff, Monitor, X, Crown, LogOut, Play, Wifi, WifiOff } from 'lucide-react';
+import { Copy, Mic, MicOff, Video, VideoOff, Monitor, X, Crown, LogOut, Play } from 'lucide-react';
 
 const Button = ({ children, onClick, variant = 'default', size = 'default', className = '', ...props }) => {
   const baseClasses = 'inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none ring-offset-background';
@@ -30,8 +30,12 @@ const CardContent = ({ children, className = '' }) => (
   <div className={`p-2 ${className}`}>{children}</div>
 );
 
-const ParticipantCard = ({ user, isSelf, isHost, selfViewTrack, micOn, videoOn, isActiveSpeaker }) => {
-  const displayName = isSelf ? `${user.displayName || 'You'}` : `User-${user.uid.toString().substring(0, 4)}`;
+// --- MODIFICATION: Simplified props for clarity and correctness ---
+const ParticipantCard = ({ user, isSelf, selfViewTrack, micOn, videoOn, isActiveSpeaker, isHostCard, participantDetails }) => {
+  const displayName = isSelf
+    ? `${user.displayName || 'You'}`
+    : participantDetails[user.uid]?.displayName || `User-${user.uid.toString().substring(0, 4)}`;
+    
   const videoContainerClasses = `relative w-full aspect-video bg-neutral-800 rounded-md overflow-hidden transition-all duration-300 ${isActiveSpeaker ? 'ring-2 ring-green-500 ring-offset-2 ring-offset-neutral-900' : ''}`;
 
   return (
@@ -54,25 +58,21 @@ const ParticipantCard = ({ user, isSelf, isHost, selfViewTrack, micOn, videoOn, 
               </>
             )
           ) : (
-            user.hasVideo ? (
-              <RemoteUser user={user} playVideo={true} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-            ) : (
-              <div className="absolute inset-0 flex items-center justify-center bg-neutral-800">
-                <VideoOff className="w-8 h-8 text-neutral-500" />
-              </div>
-            )
+            // This RemoteUser component is the key part. It should only receive the 'user' prop.
+            <RemoteUser user={user} playVideo={true} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
           )}
-          {/* --- FIX: Crown icon is now inside the video container, top-left --- */}
-          {isHost && (
+
+          {/* This logic remains for the crown icon */}
+          {isHostCard && (
             <div className="absolute top-1 left-1 p-1 bg-black/50 rounded">
               <Crown className="w-4 h-4 text-yellow-400" />
             </div>
           )}
+          
           <div className="absolute bottom-1 right-1 p-1 bg-black/50 rounded text-xs">
             {isSelf ? (micOn ? <Mic className="w-3 h-3" /> : <MicOff className="w-3 h-3 text-red-500" />) : (user.hasAudio ? <Mic className="w-3 h-3" /> : <MicOff className="w-3 h-3 text-red-500" />)}
           </div>
         </div>
-        {/* --- FIX: Participant name is now centered --- */}
         <div className="flex items-center justify-center w-full text-xs">
           <span className="font-semibold truncate">
             {displayName}
@@ -99,9 +99,9 @@ const ConnectionStateOverlay = ({ state }) => {
 };
 
 const StreamRoomLayout = ({
-  isHost, selfViewTrack, remoteUsers, toggleMic, toggleCamera, micOn, cameraOn, handleLeave,
+  isHost, hostUid, selfViewTrack, remoteUsers, toggleMic, toggleCamera, micOn, cameraOn, handleLeave,
   handleStartStream, isMoviePlaying, roomId, handleStopMovie, hostScreenUser, screenShareError,
-  activeSpeakerUid, connectionState, isStartingStream
+  activeSpeakerUid, connectionState, isStartingStream, participantDetails
 }) => {
   const { user } = useAuth();
   const { addToast } = useToast();
@@ -165,12 +165,24 @@ const StreamRoomLayout = ({
       
       <div className="flex justify-center overflow-x-auto p-2 gap-2 border-t border-neutral-800 bg-neutral-950">
           <ParticipantCard
-              user={user} isSelf={true} isHost={isHost} selfViewTrack={selfViewTrack}
-              micOn={micOn} videoOn={cameraOn}
+              user={user}
+              isSelf={true}
+              selfViewTrack={selfViewTrack}
+              micOn={micOn}
+              videoOn={cameraOn}
               isActiveSpeaker={activeSpeakerUid === user.uid}
+              isHostCard={user.uid === hostUid} 
+              participantDetails={participantDetails}
           />
           {participantUsers.map(remoteUser => (
-              <ParticipantCard key={remoteUser.uid} user={remoteUser} isActiveSpeaker={activeSpeakerUid === remoteUser.uid} />
+              <ParticipantCard
+                key={remoteUser.uid}
+                user={remoteUser}
+                isSelf={false}
+                isActiveSpeaker={activeSpeakerUid === remoteUser.uid}
+                isHostCard={remoteUser.uid === hostUid}
+                participantDetails={participantDetails}
+              />
           ))}
       </div>
       
