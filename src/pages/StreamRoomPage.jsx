@@ -31,7 +31,8 @@ const StreamRoomPage = ({ isHost, hostUid, roomId, token, onLeaveRoom, appId, cl
     handleStopMovie,
     activeSpeakerUid,
     isStartingStream,
-    participantDetails
+    participantDetails,
+    videoStats 
   } = useStreamRoomHooks({
     isHost,
     roomId,
@@ -115,6 +116,7 @@ const StreamRoomPage = ({ isHost, hostUid, roomId, token, onLeaveRoom, appId, cl
         activeSpeakerUid={activeSpeakerUid}
         isStartingStream={isStartingStream}
         participantDetails={participantDetails}
+        videoStats={videoStats}
       />
     </div>
   );

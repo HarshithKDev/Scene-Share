@@ -112,7 +112,7 @@ const ConnectionStateOverlay = ({ state }) => {
 const StreamRoomLayout = ({
   isHost, hostUid, selfViewTrack, remoteUsers, toggleMic, toggleCamera, micOn, cameraOn, handleLeave,
   handleStartStream, isMoviePlaying, roomId, handleStopMovie, hostScreenUser, screenShareError,
-  activeSpeakerUid, connectionState, isStartingStream, participantDetails
+  activeSpeakerUid, connectionState, isStartingStream, participantDetails, videoStats
 }) => {
   const { user } = useAuth();
   const { addToast } = useToast();
@@ -171,6 +171,11 @@ const StreamRoomLayout = ({
             <div className="absolute bottom-4 left-4 bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow-lg">
                 {screenShareError}
             </div>
+        )}
+        {videoStats.screen && (
+          <div className="absolute top-4 left-4 bg-black/50 text-white p-2 rounded">
+            <p>FPS: {videoStats.screen.fps || 0}</p>
+          </div>
         )}
       </main>
       
