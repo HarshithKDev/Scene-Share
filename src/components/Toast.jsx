@@ -1,44 +1,37 @@
 // src/components/Toast.jsx
-import React, { useEffect } from 'react';
-import { createPortal } from 'react-dom';
+import React from 'react';
+import { XCircle, CheckCircle, Info, AlertTriangle } from 'lucide-react';
 
-const Toast = ({ message, type, onRemove }) => {
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            onRemove();
-        }, 5000); // Auto-dismiss after 5 seconds
-
-        return () => clearTimeout(timer);
-    }, [onRemove]);
-
-    const baseClasses = 'p-4 rounded-md shadow-lg text-white mb-2 max-w-sm w-full mx-auto animate-fade-in-down';
-    const typeClasses = {
-        info: 'bg-blue-500',
-        success: 'bg-green-500',
-        error: 'bg-red-500',
+const Toast = ({ message, type = 'info', onDismiss }) => {
+    const icons = {
+        success: <CheckCircle className="text-green-500" />,
+        error: <XCircle className="text-red-500" />,
+        info: <Info className="text-blue-500" />,
+        warning: <AlertTriangle className="text-yellow-500" />,
     };
 
     return (
-        <div className={`${baseClasses} ${typeClasses[type]}`}>
-            {message}
+        <div className="bg-neutral-800 text-white p-4 rounded-md shadow-lg flex items-center gap-3 animate-fade-in-down">
+            {icons[type]}
+            <span>{message}</span>
         </div>
     );
 };
 
-const ToastContainer = ({ toasts, removeToast }) => {
-    return createPortal(
-        <div className="fixed top-5 right-5 z-[100] space-y-2">
-            {toasts.map(toast => (
-                <Toast
-                    key={toast.id}
-                    message={toast.message}
-                    type={toast.type}
-                    onRemove={() => removeToast(toast.id)}
+// FIX: Define and export the ToastContainer component
+export const ToastContainer = ({ toasts, removeToast }) => {
+    return (
+        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-50 flex flex-col gap-2">
+            {(toasts || []).map((toast) => (
+                <Toast 
+                    key={toast.id} 
+                    message={toast.message} 
+                    type={toast.type} 
+                    onDismiss={() => removeToast(toast.id)} 
                 />
             ))}
-        </div>,
-        document.body
+        </div>
     );
 };
 
-export default ToastContainer;
+export default Toast;
