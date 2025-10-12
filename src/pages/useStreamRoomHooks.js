@@ -449,7 +449,17 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, client:
             );
         } catch (mediaError) {
             console.error("❌ CRITICAL: Failed to create media tracks.", mediaError);
-            setConnectionError(`Could not access camera or microphone. Error: ${mediaError.message}`);
+            // --- MODIFICATION START ---
+            let errorMessage = `Could not access camera or microphone. Please ensure you have a camera/microphone connected and have granted permissions in your browser.`;
+            if (mediaError.code === 'PERMISSION_DENIED') {
+                errorMessage = "Camera and microphone permissions have been denied. Please enable them in your browser settings to continue.";
+            } else if (mediaError.code === 'NOT_FOUND' || mediaError.code === 'DEVICES_NOT_FOUND') {
+                errorMessage = "No camera or microphone found. Please connect a device and grant permissions.";
+            } else if (mediaError.code === 'NOT_READABLE' || mediaError.code === 'TRACK_UNREADABLE') {
+                errorMessage = "Your camera or microphone is currently in use by another application. Please close the other application and try again.";
+            }
+            setConnectionError(errorMessage);
+            // --- MODIFICATION END ---
             return;
         }
 
