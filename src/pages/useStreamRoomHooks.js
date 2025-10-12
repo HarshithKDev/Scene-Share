@@ -181,6 +181,7 @@ export const useStreamRoomHooks = ({ isHost, hostUid, roomId, token, user, appId
     }
   }, []);
 
+  // --- FIX START ---
   const handleUserLeft = useCallback((user) => {
     console.log('👤 User left:', user.uid);
 
@@ -192,10 +193,11 @@ export const useStreamRoomHooks = ({ isHost, hostUid, roomId, token, user, appId
       setScreenShareError(null);
     }
 
-    if (hostCameraUser && hostCameraUser.uid === user.uid) {
+    if (user.uid === hostUid) {
       setHostCameraUser(null);
     }
-  }, [hostCameraUser]);
+  }, [hostUid]);
+  // --- FIX END ---
 
   useEffect(() => {
     if (!isHost) {
@@ -463,14 +465,14 @@ export const useStreamRoomHooks = ({ isHost, hostUid, roomId, token, user, appId
             return;
         }
 
-        await micTrack.setEnabled(micOn);
-        await camTrack.setEnabled(cameraOn);
-
         localMicrophoneTrackRef.current = micTrack;
         localCameraTrackRef.current = camTrack;
         setSelfViewTrack(camTrack);
 
         await agoraClient.publish([micTrack, camTrack]);
+
+        await micTrack.setEnabled(micOn);
+        await camTrack.setEnabled(cameraOn);
 
         setDataStreamReady(true);
         initializationRef.current.hasJoined = true;
