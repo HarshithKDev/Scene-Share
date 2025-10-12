@@ -30,19 +30,18 @@ const CardContent = ({ children, className = '' }) => (
   <div className={`p-2 ${className}`}>{children}</div>
 );
 
-const ParticipantCard = ({ user, isSelf, selfViewTrack, micOn, videoOn, isActiveSpeaker, isHostCard, participantDetails }) => {
+const ParticipantCard = ({ user, isSelf, selfViewTrack, micOn, videoOn, isActiveSpeaker, isHostCard, participantDetails, className = '' }) => {
   const displayName = isSelf
     ? `${user.displayName || 'You'}`
     : participantDetails[user.uid]?.displayName || `User-${user.uid.toString().substring(0, 4)}`;
-    
+
   const videoContainerClasses = `relative w-full aspect-video bg-neutral-800 rounded-md overflow-hidden transition-all duration-300 ${isActiveSpeaker ? 'ring-2 ring-green-500 ring-offset-2 ring-offset-neutral-900' : ''}`;
 
   return (
-    <Card className="w-40 flex-shrink-0">
+    <Card className={className}>
       <CardContent className="flex flex-col gap-2">
         <div className={videoContainerClasses}>
           {isSelf ? (
-            // Logic for the local user (yourself)
             selfViewTrack && (
               <>
                 <LocalVideoTrack
@@ -58,12 +57,11 @@ const ParticipantCard = ({ user, isSelf, selfViewTrack, micOn, videoOn, isActive
               </>
             )
           ) : (
-            // --- MODIFICATION START: Correct logic for remote users ---
             <>
-              <RemoteUser 
-                user={user} 
-                playVideo={user.hasVideo} // Control playback directly with this prop
-                style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+              <RemoteUser
+                user={user}
+                playVideo={user.hasVideo}
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
               />
               {!user.hasVideo && (
                 <div className="absolute inset-0 flex items-center justify-center bg-neutral-800">
@@ -71,7 +69,6 @@ const ParticipantCard = ({ user, isSelf, selfViewTrack, micOn, videoOn, isActive
                 </div>
               )}
             </>
-            // --- MODIFICATION END ---
           )}
 
           {isHostCard && (
@@ -79,7 +76,7 @@ const ParticipantCard = ({ user, isSelf, selfViewTrack, micOn, videoOn, isActive
               <Crown className="w-4 h-4 text-yellow-400" />
             </div>
           )}
-          
+
           <div className="absolute bottom-1 right-1 p-1 bg-black/50 rounded text-xs">
             {isSelf ? (micOn ? <Mic className="w-3 h-3" /> : <MicOff className="w-3 h-3 text-red-500" />) : (user.hasAudio ? <Mic className="w-3 h-3" /> : <MicOff className="w-3 h-3 text-red-500" />)}
           </div>
@@ -93,6 +90,7 @@ const ParticipantCard = ({ user, isSelf, selfViewTrack, micOn, videoOn, isActive
     </Card>
   );
 };
+
 
 const ConnectionStateOverlay = ({ state }) => {
     if (state === 'CONNECTED') return null;
@@ -109,6 +107,26 @@ const ConnectionStateOverlay = ({ state }) => {
     );
 };
 
+const useMediaQuery = (query) => {
+  const [matches, setMatches] = useState(() => window.matchMedia(query).matches);
+
+  useEffect(() => {
+    const mediaQueryList = window.matchMedia(query);
+    const listener = (event) => setMatches(event.matches);
+
+    mediaQueryList.addEventListener('change', listener);
+
+    setMatches(mediaQueryList.matches);
+
+    return () => {
+      mediaQueryList.removeEventListener('change', listener);
+    };
+  }, [query]);
+
+  return matches;
+};
+
+
 const StreamRoomLayout = ({
   isHost, hostUid, selfViewTrack, remoteUsers, toggleMic, toggleCamera, micOn, cameraOn, handleLeave,
   handleStartStream, isMoviePlaying, roomId, handleStopMovie, hostScreenUser, screenShareError,
@@ -118,6 +136,7 @@ const StreamRoomLayout = ({
   const { addToast } = useToast();
   const [copied, setCopied] = useState(false);
   const mainVideoContainerRef = useRef(null);
+  const isDesktop = useMediaQuery('(min-width: 768px)');
 
   const participantUsers = remoteUsers.filter(u => !u.uid.toString().endsWith('-screen'));
 
@@ -139,69 +158,103 @@ const StreamRoomLayout = ({
     };
   }, [hostScreenUser]);
 
+  const renderParticipants = (cardClassName) => (
+    <>
+      <ParticipantCard
+        className={cardClassName}
+        user={user}
+        isSelf={true}
+        selfViewTrack={selfViewTrack}
+        micOn={micOn}
+        videoOn={cameraOn}
+        isActiveSpeaker={activeSpeakerUid === user.uid}
+        isHostCard={user.uid === hostUid}
+        participantDetails={participantDetails}
+      />
+      {participantUsers.map(remoteUser => (
+        <ParticipantCard
+          key={remoteUser.uid}
+          className={cardClassName}
+          user={remoteUser}
+          isSelf={false}
+          isActiveSpeaker={activeSpeakerUid === remoteUser.uid}
+          isHostCard={remoteUser.uid === hostUid}
+          participantDetails={participantDetails}
+        />
+      ))}
+    </>
+  );
+
   return (
     <div className='flex flex-col h-screen bg-neutral-950 text-white'>
-      
-      <div className='flex items-center justify-between p-2 border-b border-neutral-800'>
-          <div className="flex items-center gap-3">
-              <div className="flex flex-col">
-                  <span className="text-xs text-neutral-400">ROOM</span>
-                  <span className="font-mono tracking-wider">{roomId}</span>
-              </div>
-              <Button size='icon' variant='ghost' onClick={copyRoomCode}><Copy className='w-4 h-4' /></Button>
-          </div>
-      </div>
-
-      <main className='flex-1 flex items-center justify-center bg-neutral-900 relative p-2 md:p-4 min-h-0'>
-        <ConnectionStateOverlay state={connectionState} />
-        {connectionState === 'CONNECTED' && (
-          <>
-            {isMoviePlaying && hostScreenUser?.videoTrack ? (
-              <div ref={mainVideoContainerRef} className='w-full h-full bg-black rounded-lg'></div>
-            ) : (
-              <div className='text-center text-neutral-500'>
-                <Monitor size={64} className="mx-auto mb-4" />
-                <h2 className='text-2xl font-bold'>Waiting for Host to Share Screen</h2>
-                {isHost && <p className="mt-2">Click the "Start Stream" button below to begin.</p>}
-              </div>
-            )}
-          </>
-        )}
-        {screenShareError && (
-            <div className="absolute bottom-4 left-4 bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow-lg">
-                {screenShareError}
+      {/* --- MODIFICATION: Mobile Header is now here --- */}
+      {!isDesktop && (
+        <div className='flex items-center justify-between p-2 border-b border-neutral-800'>
+            <div className="flex items-center gap-3">
+                <div className="flex flex-col">
+                    <span className="text-xs text-neutral-400">ROOM</span>
+                    <span className="font-mono tracking-wider">{roomId}</span>
+                </div>
+                <Button size='icon' variant='ghost' onClick={copyRoomCode}><Copy className='w-4 h-4' /></Button>
             </div>
+        </div>
+      )}
+
+      <div className='flex-1 flex flex-col md:flex-row min-h-0'>
+        {/* Screen Share View */}
+        <main className='flex-1 flex items-center justify-center bg-neutral-900 relative p-2 md:p-4 min-h-0'>
+          <ConnectionStateOverlay state={connectionState} />
+          {connectionState === 'CONNECTED' && (
+            <>
+              {isMoviePlaying && hostScreenUser?.videoTrack ? (
+                <div ref={mainVideoContainerRef} className='w-full h-full bg-black rounded-lg'></div>
+              ) : (
+                <div className='text-center text-neutral-500'>
+                  <Monitor size={64} className="mx-auto mb-4" />
+                  <h2 className='text-2xl font-bold'>Waiting for Host to Share Screen</h2>
+                  {isHost && <p className="mt-2">Click the "Start Stream" button below to begin.</p>}
+                </div>
+              )}
+            </>
+          )}
+          {screenShareError && (
+              <div className="absolute bottom-4 left-4 bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow-lg">
+                  {screenShareError}
+              </div>
+          )}
+          {videoStats.screen && (
+            <div className="absolute top-4 left-4 bg-black/50 text-white p-2 rounded">
+              <p>FPS: {videoStats.screen.fps || 0}</p>
+            </div>
+          )}
+        </main>
+        
+        {isDesktop && (
+          <aside className="flex flex-col w-64 border-l border-neutral-800 bg-neutral-950">
+            <div className='flex items-center justify-between p-2 border-b border-neutral-800'>
+                <div className="flex items-center gap-3">
+                    <div className="flex flex-col">
+                        <span className="text-xs text-neutral-400">ROOM</span>
+                        <span className="font-mono tracking-wider">{roomId}</span>
+                    </div>
+                    <Button size='icon' variant='ghost' onClick={copyRoomCode}><Copy className='w-4 h-4' /></Button>
+                </div>
+            </div>
+            <div className="flex-1 overflow-y-auto p-2 space-y-2">
+              {renderParticipants('w-full')}
+            </div>
+          </aside>
         )}
-        {videoStats.screen && (
-          <div className="absolute top-4 left-4 bg-black/50 text-white p-2 rounded">
-            <p>FPS: {videoStats.screen.fps || 0}</p>
-          </div>
-        )}
-      </main>
-      
-      <div className="flex justify-center overflow-x-auto p-2 gap-2 border-t border-neutral-800 bg-neutral-950">
-          <ParticipantCard
-              user={user}
-              isSelf={true}
-              selfViewTrack={selfViewTrack}
-              micOn={micOn}
-              videoOn={cameraOn}
-              isActiveSpeaker={activeSpeakerUid === user.uid}
-              isHostCard={user.uid === hostUid} 
-              participantDetails={participantDetails}
-          />
-          {participantUsers.map(remoteUser => (
-              <ParticipantCard
-                key={remoteUser.uid}
-                user={remoteUser}
-                isSelf={false}
-                isActiveSpeaker={activeSpeakerUid === remoteUser.uid}
-                isHostCard={remoteUser.uid === hostUid}
-                participantDetails={participantDetails}
-              />
-          ))}
       </div>
       
+      {/* --- MODIFICATION: Centered mobile participants and moved border --- */}
+      {!isDesktop && (
+        <div className="flex justify-center overflow-x-auto p-2 gap-2 bg-neutral-950 border-t border-neutral-800">
+            {renderParticipants('w-40 flex-shrink-0')}
+        </div>
+      )}
+      
+      {/* Footer Controls */}
       <footer className="flex justify-center items-center p-3 md:p-4 border-t border-neutral-800 bg-neutral-950 relative">
         <div className="flex gap-4">
           <Button onClick={toggleMic} variant="ghost" size="icon">{micOn ? <Mic className='w-5 h-5' /> : <MicOff className='w-5 h-5 text-red-500' />}</Button>
