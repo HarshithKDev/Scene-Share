@@ -26,7 +26,7 @@ const withTimeout = (promise, ms) => {
 };
 
 
-export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, client: agoraClient, fetchAgoraToken, onTokenError }) => {
+export const useStreamRoomHooks = ({ isHost, hostUid, roomId, token, user, appId, client: agoraClient, fetchAgoraToken, onTokenError }) => {
   const [screenClient, setScreenClient] = useState(null);
 
   const connectionState = useConnectionState();
@@ -57,7 +57,7 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, client:
   const [participantDetails, setParticipantDetails] = useState({});
   const [videoStats, setVideoStats] = useState({});
   const [showNerdStats, setShowNerdStats] = useState(false);
-  const [networkQuality, setNetworkQuality] = useState({ uplinkNetworkQuality: 0, downlinkNetworkQuality: 0 }); // --- FIX: State for network quality
+  const [networkQuality, setNetworkQuality] = useState({ uplinkNetworkQuality: 0, downlinkNetworkQuality: 0 });
 
 
   const localMicrophoneTrackRef = useRef(null);
@@ -160,17 +160,14 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, client:
             setHostScreenUser(null);
           });
         }
-      } else if (!isHost) {
-        console.log('👤 Regular user published:', user.uid);
-        if (!hostCameraUser) {
-          console.log('🎯 Setting potential host camera user:', user.uid);
-          setHostCameraUser(user);
-        }
+      } else if (user.uid === hostUid) {
+        console.log('🎯 FOUND HOST CAMERA USER:', user.uid);
+        setHostCameraUser(user);
       }
     } catch (error) {
       console.error('❌ Failed to subscribe:', error);
     }
-  }, [agoraClient, isHost, hostCameraUser]);
+  }, [agoraClient, hostUid]);
 
   const handleUserUnpublished = useCallback((user, mediaType) => {
     console.log('📡 User unpublished:', user.uid, mediaType);
@@ -201,22 +198,20 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, client:
   }, [hostCameraUser]);
 
   useEffect(() => {
-    if (!isHost && !hostScreenUser) {
-      const screenUser = remoteUsers.find(u => {
-        const isScreen = u.uid.toString().endsWith('-screen');
-        if (isScreen && u.videoTrack) {
-          return true;
-        }
-        return false;
-      });
-
+    if (!isHost) {
+      const screenUser = remoteUsers.find(u => u.uid.toString().endsWith('-screen') && u.videoTrack);
       if (screenUser) {
         setHostScreenUser(screenUser);
         setIsMoviePlaying(true);
         setScreenShareError(null);
       }
+
+      const cameraUser = remoteUsers.find(u => u.uid === hostUid);
+      if (cameraUser) {
+        setHostCameraUser(cameraUser);
+      }
     }
-  }, [remoteUsers, isHost, hostScreenUser]);
+  }, [remoteUsers, isHost, hostUid]);
 
   const handleTokenPrivilegeWillExpire = useCallback(async () => {
     console.log('🔑 Token will expire soon, renewing...');
@@ -431,7 +426,6 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, client:
             setActiveSpeakerUid(speakerUid);
         };
 
-        // --- FIX: Handle network quality updates ---
         const handleNetworkQuality = (quality) => {
             setNetworkQuality({
                 uplinkNetworkQuality: quality.uplinkNetworkQuality,
@@ -445,7 +439,7 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, client:
         agoraClient.on('token-privilege-will-expire', handleTokenPrivilegeWillExpire);
         agoraClient.on('token-privilege-did-expire', handleTokenPrivilegeDidExpire);
         agoraClient.on("volume-indicator", handleVolumeIndicator);
-        agoraClient.on("network-quality", handleNetworkQuality); // --- FIX: Listen to the correct event ---
+        agoraClient.on("network-quality", handleNetworkQuality);
 
         await agoraClient.join(appId, roomId, token, user.uid);
 
@@ -585,7 +579,7 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, client:
     }, 1000);
   
     return () => clearInterval(interval);
-  }, [agoraClient, screenClient, remoteUsers, isHost, hostScreenUser, networkQuality]); // --- FIX: Add networkQuality to dependency array ---
+  }, [agoraClient, screenClient, remoteUsers, isHost, hostScreenUser, networkQuality]);
 
   return {
     micOn,
