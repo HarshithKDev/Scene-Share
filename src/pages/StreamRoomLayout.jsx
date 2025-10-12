@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { LocalVideoTrack, RemoteUser } from "agora-rtc-react";
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { Copy, Mic, MicOff, Video, VideoOff, Monitor, X, Crown, LogOut, Play } from 'lucide-react';
+import { Copy, Mic, MicOff, Video, VideoOff, Monitor, X, Crown, LogOut, Play, Info } from 'lucide-react';
 
 const Button = ({ children, onClick, variant = 'default', size = 'default', className = '', ...props }) => {
   const baseClasses = 'inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none ring-offset-background';
@@ -107,6 +107,36 @@ const ConnectionStateOverlay = ({ state }) => {
     );
 };
 
+const NerdStatsOverlay = ({ stats }) => {
+    if (!stats || !stats.screen) return null;
+  
+    const { fps = 0, bitrate = 0, resolution = 'N/A', uplink = 'N/A', downlink = 'N/A' } = stats.screen;
+  
+    const getQualityLabel = (quality) => {
+      switch (quality) {
+        case 0: return 'Unknown';
+        case 1: return 'Excellent';
+        case 2: return 'Good';
+        case 3: return 'Poor';
+        case 4: return 'Bad';
+        case 5: return 'Very Bad';
+        case 6: return 'Down';
+        default: return 'N/A';
+      }
+    };
+  
+    return (
+        <div className="absolute bottom-full left-0 mb-2 bg-black/60 text-white p-3 rounded-lg text-xs font-mono backdrop-blur-sm w-max">
+            <h4 className="font-bold mb-1 text-sm">Stream Stats</h4>
+            <p>Resolution: <span className="font-semibold">{resolution}</span></p>
+            <p>FPS: <span className="font-semibold">{fps}</span></p>
+            <p>Bitrate: <span className="font-semibold">{(bitrate / 1000).toFixed(2)} Mbps</span></p>
+            <p>Uplink: <span className="font-semibold">{getQualityLabel(uplink)}</span></p>
+            <p>Downlink: <span className="font-semibold">{getQualityLabel(downlink)}</span></p>
+        </div>
+    );
+};
+
 const useMediaQuery = (query) => {
   const [matches, setMatches] = useState(() => window.matchMedia(query).matches);
 
@@ -130,7 +160,8 @@ const useMediaQuery = (query) => {
 const StreamRoomLayout = ({
   isHost, hostUid, selfViewTrack, remoteUsers, toggleMic, toggleCamera, micOn, cameraOn, handleLeave,
   handleStartStream, isMoviePlaying, roomId, handleStopMovie, hostScreenUser, screenShareError,
-  activeSpeakerUid, connectionState, isStartingStream, participantDetails, videoStats
+  activeSpeakerUid, connectionState, isStartingStream, participantDetails, videoStats,
+  showNerdStats, setShowNerdStats
 }) => {
   const { user } = useAuth();
   const { addToast } = useToast();
@@ -187,7 +218,6 @@ const StreamRoomLayout = ({
 
   return (
     <div className='flex flex-col h-screen bg-neutral-950 text-white'>
-      {/* --- MODIFICATION: Mobile Header is now here --- */}
       {!isDesktop && (
         <div className='flex items-center justify-between p-2 border-b border-neutral-800'>
             <div className="flex items-center gap-3">
@@ -201,7 +231,6 @@ const StreamRoomLayout = ({
       )}
 
       <div className='flex-1 flex flex-col md:flex-row min-h-0'>
-        {/* Screen Share View */}
         <main className='flex-1 flex items-center justify-center bg-neutral-900 relative p-2 md:p-4 min-h-0'>
           <ConnectionStateOverlay state={connectionState} />
           {connectionState === 'CONNECTED' && (
@@ -221,11 +250,6 @@ const StreamRoomLayout = ({
               <div className="absolute bottom-4 left-4 bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow-lg">
                   {screenShareError}
               </div>
-          )}
-          {videoStats.screen && (
-            <div className="absolute top-4 left-4 bg-black/50 text-white p-2 rounded">
-              <p>FPS: {videoStats.screen.fps || 0}</p>
-            </div>
           )}
         </main>
         
@@ -247,15 +271,23 @@ const StreamRoomLayout = ({
         )}
       </div>
       
-      {/* --- MODIFICATION: Centered mobile participants and moved border --- */}
       {!isDesktop && (
         <div className="flex justify-center overflow-x-auto p-2 gap-2 bg-neutral-950 border-t border-neutral-800">
             {renderParticipants('w-40 flex-shrink-0')}
         </div>
       )}
       
-      {/* Footer Controls */}
       <footer className="flex justify-center items-center p-3 md:p-4 border-t border-neutral-800 bg-neutral-950 relative">
+        <div className="absolute left-4">
+            {isHost && isMoviePlaying && (
+                <div className="relative">
+                    <Button onClick={() => setShowNerdStats(prev => !prev)} variant="ghost" size="icon">
+                        <Info className={`w-5 h-5 ${showNerdStats ? 'text-blue-400' : ''}`} />
+                    </Button>
+                    {showNerdStats && <NerdStatsOverlay stats={videoStats} />}
+                </div>
+            )}
+        </div>
         <div className="flex gap-4">
           <Button onClick={toggleMic} variant="ghost" size="icon">{micOn ? <Mic className='w-5 h-5' /> : <MicOff className='w-5 h-5 text-red-500' />}</Button>
           <Button onClick={toggleCamera} variant="ghost" size="icon">{cameraOn ? <Video className='w-5 h-5' /> : <VideoOff className='w-5 h-5 text-red-500' />}</Button>

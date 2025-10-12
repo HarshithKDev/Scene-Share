@@ -56,6 +56,8 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, client:
   const [activeSpeakerUid, setActiveSpeakerUid] = useState(null);
   const [participantDetails, setParticipantDetails] = useState({});
   const [videoStats, setVideoStats] = useState({});
+  const [showNerdStats, setShowNerdStats] = useState(false);
+  const [networkQuality, setNetworkQuality] = useState({ uplinkNetworkQuality: 0, downlinkNetworkQuality: 0 }); // --- FIX: State for network quality
 
 
   const localMicrophoneTrackRef = useRef(null);
@@ -70,7 +72,6 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, client:
     screenClientJoined: false
   });
 
-  // NEW EFFECT: Listen for participant details
   useEffect(() => {
     if (!roomId) return;
 
@@ -84,7 +85,7 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, client:
       setParticipantDetails(details);
     });
 
-    return () => unsubscribe(); // Cleanup listener on component unmount
+    return () => unsubscribe();
   }, [roomId]);
 
   useEffect(() => {
@@ -317,12 +318,11 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, client:
   const createScreenTrack = useCallback(async () => {
     try {
       return await AgoraRTC.createScreenVideoTrack({
-        // Using a standard config with a bitrate cap
         encoderConfig: {
             width: 1280,
             height: 1080,
             frameRate: 30,
-            bitrateMax: 2000, // Capping bitrate at 2000 Kbps (2 Mbps)
+            bitrateMax: 2000,
         },
         optimizationMode: "motion",
         withAudio: "enable",
@@ -351,8 +351,7 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, client:
     const screenUid = `${user.uid}-screen`;
 
     try {
-      // --- FIX: Wrap the permission request in a timeout ---
-      const screenTrack = await withTimeout(createScreenTrack(), 30000); // 30-second timeout
+      const screenTrack = await withTimeout(createScreenTrack(), 30000);
       const [videoTrack, audioTrack] = Array.isArray(screenTrack) ? screenTrack : [screenTrack];
 
       const { token: screenToken } = await fetchAgoraToken(roomId, screenUid);
@@ -432,12 +431,21 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, client:
             setActiveSpeakerUid(speakerUid);
         };
 
+        // --- FIX: Handle network quality updates ---
+        const handleNetworkQuality = (quality) => {
+            setNetworkQuality({
+                uplinkNetworkQuality: quality.uplinkNetworkQuality,
+                downlinkNetworkQuality: quality.downlinkNetworkQuality,
+            });
+        };
+
         agoraClient.on('user-published', handleUserPublished);
         agoraClient.on('user-unpublished', handleUserUnpublished);
         agoraClient.on('user-left', handleUserLeft);
         agoraClient.on('token-privilege-will-expire', handleTokenPrivilegeWillExpire);
         agoraClient.on('token-privilege-did-expire', handleTokenPrivilegeDidExpire);
         agoraClient.on("volume-indicator", handleVolumeIndicator);
+        agoraClient.on("network-quality", handleNetworkQuality); // --- FIX: Listen to the correct event ---
 
         await agoraClient.join(appId, roomId, token, user.uid);
 
@@ -449,7 +457,6 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, client:
             );
         } catch (mediaError) {
             console.error("❌ CRITICAL: Failed to create media tracks.", mediaError);
-            // --- MODIFICATION START ---
             let errorMessage = `Could not access camera or microphone. Please ensure you have a camera/microphone connected and have granted permissions in your browser.`;
             if (mediaError.code === 'PERMISSION_DENIED') {
                 errorMessage = "Camera and microphone permissions have been denied. Please enable them in your browser settings to continue.";
@@ -459,7 +466,6 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, client:
                 errorMessage = "Your camera or microphone is currently in use by another application. Please close the other application and try again.";
             }
             setConnectionError(errorMessage);
-            // --- MODIFICATION END ---
             return;
         }
 
@@ -530,52 +536,56 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, client:
     const interval = setInterval(() => {
       const allStats = {};
   
-      // Local video stats (camera)
       const localVideoStats = agoraClient.getLocalVideoStats();
       if (localVideoStats) {
         allStats['local'] = {
           fps: localVideoStats.sendFrameRate,
           bitrate: localVideoStats.sendBitrate,
+          resolution: `${localVideoStats.sendResolutionWidth}x${localVideoStats.sendResolutionHeight}`
         };
       }
   
-      // Remote video stats (other users' cameras)
       remoteUsers.forEach(user => {
         const remoteVideoStats = agoraClient.getRemoteVideoStats(user.uid);
         if (remoteVideoStats) {
           allStats[user.uid] = {
             fps: remoteVideoStats.receiveFrameRate,
             bitrate: remoteVideoStats.receiveBitrate,
+            resolution: `${remoteVideoStats.width}x${remoteVideoStats.height}`
           };
         }
       });
   
-      // Screen share stats (if you are the host)
       if (isHost && screenClient && screenClient.connectionState === 'CONNECTED') {
         const screenStats = screenClient.getLocalVideoStats();
         if (screenStats) {
           allStats['screen'] = {
             fps: screenStats.sendFrameRate,
             bitrate: screenStats.sendBitrate,
+            resolution: `${screenStats.sendResolutionWidth}x${screenStats.sendResolutionHeight}`,
+            uplink: networkQuality.uplinkNetworkQuality,
+            downlink: networkQuality.downlinkNetworkQuality,
           };
         }
       }
-      // Screen share stats (if you are a viewer)
       else if (!isHost && hostScreenUser) {
         const remoteScreenStats = agoraClient.getRemoteVideoStats(hostScreenUser.uid);
         if (remoteScreenStats) {
           allStats['screen'] = {
             fps: remoteScreenStats.receiveFrameRate,
             bitrate: remoteScreenStats.receiveBitrate,
+            resolution: `${remoteScreenStats.width}x${remoteScreenStats.height}`,
+            uplink: networkQuality.uplinkNetworkQuality,
+            downlink: networkQuality.downlinkNetworkQuality,
           };
         }
       }
   
       setVideoStats(allStats);
-    }, 1000); // Update stats every second
+    }, 1000);
   
     return () => clearInterval(interval);
-  }, [agoraClient, screenClient, remoteUsers, isHost, hostScreenUser]);
+  }, [agoraClient, screenClient, remoteUsers, isHost, hostScreenUser, networkQuality]); // --- FIX: Add networkQuality to dependency array ---
 
   return {
     micOn,
@@ -602,6 +612,8 @@ export const useStreamRoomHooks = ({ isHost, roomId, token, user, appId, client:
     activeSpeakerUid,
     isStartingStream,
     participantDetails,
-    videoStats
+    videoStats,
+    showNerdStats,
+    setShowNerdStats,
   };
 };
