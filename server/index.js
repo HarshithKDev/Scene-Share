@@ -8,7 +8,29 @@ const rateLimit = require('express-rate-limit');
 
 const app = express();
 app.use(express.json());
-app.use(cors());
+
+// --- CORS Configuration ---
+const allowedOrigins = [
+  'http://localhost:5173', // Vite's default dev server
+  'http://localhost:3000', // Common React dev server port
+  'https://scene-share.vercel.app' // ** REPLACE WITH YOUR PRODUCTION URL **
+];
+
+const corsOptions = {
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.indexOf(origin) === -1) {
+      const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
+      return callback(new Error(msg), false);
+    }
+    return callback(null, true);
+  }
+};
+
+app.use(cors(corsOptions));
+// --- End CORS Configuration ---
+
 
 // Rate limiting middleware
 const apiLimiter = rateLimit({
