@@ -16,7 +16,7 @@ const Room = () => {
 
     const [agoraToken, setAgoraToken] = useState(null);
     const [isHost, setIsHost] = useState(null);
-    const [hostUid, setHostUid] = useState(null); // --- NEW: State for host's UID ---
+    const [hostUid, setHostUid] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     
@@ -30,15 +30,17 @@ const Room = () => {
             setLoading(true);
             setError(null);
             try {
-                // The API now returns an object with { token, isHost, hostUid }
                 const data = await fetchAgoraToken(roomId, user.uid, () => user.getIdToken());
                 setAgoraToken(data.token);
                 setIsHost(data.isHost);
-                setHostUid(data.hostUid); // --- NEW: Set host's UID from server response ---
+                setHostUid(data.hostUid);
             } catch (err) {
                 console.error('Token fetch error:', err);
+                // --- FIX: Set a default value for isHost to exit the loading state on error ---
+                setIsHost(false); 
                 if (err.message.includes('404')) {
-                    setError(`Room not found. Please check the ID and try again.`);
+                    // This now correctly extracts the "Room not found." message
+                    setError('Room not found. Please check the ID and try again.');
                 } else {
                     setError(`Failed to join room: ${err.message}`);
                 }
@@ -82,7 +84,7 @@ const Room = () => {
             <StreamRoomPage
                 key={`${user.uid}-${roomId}`}
                 isHost={isHost}
-                hostUid={hostUid} // --- NEW: Pass hostUid down as a prop ---
+                hostUid={hostUid}
                 roomId={roomId}
                 token={agoraToken}
                 onLeaveRoom={handleLeaveRoom}
