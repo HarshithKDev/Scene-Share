@@ -5,7 +5,8 @@ import { useAuth } from './context/AuthContext';
 import { useToast } from './context/ToastContext';
 // --- FIX: Import auth and updateProfile from your project's firebase setup file ---
 import { auth, updateProfile } from './firebase';
-import { sanitizeInput } from './utils/sanitize';
+// --- MODIFICATION: Import the new sanitizeRoomId function ---
+import { sanitizeInput, sanitizeRoomId } from './utils/sanitize';
 
 import ErrorBoundary from './components/ErrorBoundary'; 
 import ProtectedRoute from './components/routes/ProtectedRoute.jsx';
@@ -95,7 +96,8 @@ export default function App() {
   };
 
   const handleJoinRoom = (id) => {
-    const sanitizedId = sanitizeInput(id);
+    // --- MODIFICATION: Use the more specific sanitizeRoomId function ---
+    const sanitizedId = sanitizeRoomId(id);
     if (sanitizedId && sanitizedId.length >= 6) {
       navigate(`/room/${sanitizedId}`, { state: { isHost: false } });
     } else {

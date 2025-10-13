@@ -16,6 +16,8 @@ try {
   });
 } catch (error) {
   console.error('Error initializing Firebase Admin SDK:', error);
+  // Exiting the process if Firebase initialization fails.
+  process.exit(1);
 }
 
 const db = admin.firestore();
@@ -37,25 +39,40 @@ const verifyFirebaseToken = async (req, res, next) => {
   }
 };
 
+// --- HELPER: A simple regex to validate room IDs ---
+const isValidChannelName = (name) => /^[a-zA-Z0-9_-]+$/.test(name);
+
 app.post('/create-room', verifyFirebaseToken, async (req, res) => {
     const { channelName } = req.body;
     const { uid } = req.user;
 
-    if (!channelName) {
-        return res.status(400).json({ error: 'channelName is required.' });
+    // --- MODIFICATION: Added server-side validation for the channel name ---
+    if (!channelName || !isValidChannelName(channelName)) {
+        return res.status(400).json({ error: 'Invalid channelName format.' });
     }
 
     try {
         const expirationDate = new Date(Date.now() + 3600 * 1000 * EXPIRATION_HOURS);
-        await roomsCollection.doc(channelName).set({
-            hostUid: uid,
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
-            expiresAt: admin.firestore.Timestamp.fromDate(expirationDate),
+        // Using a transaction to make room creation atomic
+        await db.runTransaction(async (transaction) => {
+            const roomRef = roomsCollection.doc(channelName);
+            const roomDoc = await transaction.get(roomRef);
+            if (roomDoc.exists) {
+                throw new Error("Room already exists.");
+            }
+            transaction.set(roomRef, {
+                hostUid: uid,
+                createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                expiresAt: admin.firestore.Timestamp.fromDate(expirationDate),
+            });
         });
         console.log(`✅ Room created: [${channelName}], expires at ${expirationDate.toISOString()}`);
         res.status(201).json({ message: 'Room created successfully.' });
     } catch (error) {
         console.error("Error creating room in Firestore:", error);
+        if (error.message === "Room already exists.") {
+            return res.status(409).json({ error: 'Room with this ID already exists.' });
+        }
         res.status(500).json({ error: 'Failed to create room.' });
     }
 });
@@ -64,9 +81,10 @@ app.post('/heartbeat', verifyFirebaseToken, async (req, res) => {
   const { channelName } = req.body;
   const { uid } = req.user;
 
-  if (!channelName) {
-    return res.status(400).json({ error: 'channelName is required.' });
-  }
+    // --- MODIFICATION: Added server-side validation for the channel name ---
+    if (!channelName || !isValidChannelName(channelName)) {
+        return res.status(400).json({ error: 'Invalid channelName format.' });
+    }
 
   const roomRef = roomsCollection.doc(channelName);
   
@@ -98,9 +116,10 @@ app.post('/get-agora-token', verifyFirebaseToken, async (req, res) => {
   const { channelName } = req.body;
   const { uid: requestingUid, name: displayName } = req.user;
 
-  if (!channelName || typeof channelName !== 'string') {
-    return res.status(400).json({ error: 'channelName is required and must be a string.' });
-  }
+    // --- MODIFICATION: Changed validation to use the regex helper ---
+    if (!channelName || !isValidChannelName(channelName)) {
+        return res.status(400).json({ error: 'Invalid channelName format.' });
+    }
 
   let hostUid;
   try {
@@ -122,9 +141,10 @@ app.post('/get-agora-token', verifyFirebaseToken, async (req, res) => {
       return res.status(500).json({ error: 'Failed to process room details.' });
   }
 
-  const isHost = hostUid === requestingUid;
-  const isScreenShare = req.body.uid && req.body.uid.endsWith('-screen');
+  // Ensure screen-share UID is derived from the authenticated user
+  const isScreenShare = req.body.uid && req.body.uid === `${requestingUid}-screen`;
   const tokenUid = isScreenShare ? req.body.uid : requestingUid;
+
   const sanitizedChannelName = channelName.replace(/[^a-zA-Z0-9_-]/g, '');
   const sanitizedTokenUid = tokenUid.replace(/[^a-zA-Z0-9_-]/g, '');
 
@@ -145,7 +165,7 @@ app.post('/get-agora-token', verifyFirebaseToken, async (req, res) => {
     const currentTimestamp = Math.floor(Date.now() / 1000);
     const privilegeExpiredTs = currentTimestamp + expirationTimeInSeconds;
 
-    console.log(`🔄 Generating token for channel: ${sanitizedChannelName}, UID: ${sanitizedTokenUid}, isHost: ${isHost}`);
+    console.log(`🔄 Generating token for channel: ${sanitizedChannelName}, UID: ${sanitizedTokenUid}, isHost: ${hostUid === requestingUid}`);
 
     const token = RtcTokenBuilder.buildTokenWithUserAccount(
       appId,
@@ -157,7 +177,7 @@ app.post('/get-agora-token', verifyFirebaseToken, async (req, res) => {
     );
     
     // --- MODIFICATION: Add hostUid to the response ---
-    res.status(200).json({ token, uid: sanitizedTokenUid, isHost, hostUid });
+    res.status(200).json({ token, uid: sanitizedTokenUid, isHost: hostUid === requestingUid, hostUid });
   } catch (error) {
     console.error('❌ Error generating Agora token:', error);
     res.status(500).json({ error: 'Failed to generate token: ' + error.message });
