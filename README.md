@@ -14,24 +14,18 @@
   </p>
 </div>
 
-<details>
-  <summary>Table of Contents</summary>
-  <ol>
-    <li><a href="#about-the-project">About The Project</a></li>
-    <li><a href="#built-with">Built With</a></li>
-    <li><a href="#getting-started">Getting Started</a>
-      <ul>
-        <li><a href="#prerequisites">Prerequisites</a></li>
-        <li><a href="#installation">Installation</a></li>
-      </ul>
-    </li>
-    <li><a href="#features">Features</a></li>
-    <li><a href="#project-structure">Project Structure</a></li>
-    <li><a href="#deployment">Deployment</a></li>
-    <li><a href="#license">License</a></li>
-    <li><a href="#contact">Contact</a></li>
-  </ol>
-</details>
+### Table of Contents
+
+1.  [About The Project](#about-the-project)
+2.  [Built With](#built-with)
+3.  [Getting Started](#getting-started)
+    * [Prerequisites](#prerequisites)
+    * [Installation](#installation)
+4.  [Features](#features)
+5.  [Project Structure](#project-structure)
+6.  [Deployment](#deployment)
+7.  [License](#license)
+8.  [Contact](#contact)
 
 ---
 
