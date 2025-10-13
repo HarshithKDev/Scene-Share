@@ -137,11 +137,11 @@ The project is a monorepo with a clear separation between the client and server 
 │   └── index.js          # API endpoints for room creation & token generation
 │
 ├── src/                  # React Frontend Application
-│   ├── components/       # Reusable UI components (Button, Card, etc.) & Routes
-│   ├── context/          # React Context providers (Auth, Theme, Toast)
-│   ├── pages/            # Top-level page components (Lobby, Login, StreamRoom)
-│   ├── services/         # API service calls (e.g., fetchAgoraToken)
-│   ├── utils/            # Utility functions (e.g., input sanitization)
+│   ├── components/       # Reusable UI components & Routes
+│   ├── context/          # React Context providers
+│   ├── pages/            # Top-level page components
+│   ├── services/         # API service calls
+│   ├── utils/            # Utility functions 
 │   ├── App.jsx           # Main component with routing logic
 │   └── main.jsx          # Application entry point
 │
