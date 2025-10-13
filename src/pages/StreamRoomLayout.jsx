@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { LocalVideoTrack, RemoteUser } from "agora-rtc-react";
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+import { sanitizeInput } from '../utils/sanitize'; // Import the sanitizer
 import { Copy, Mic, MicOff, Video, VideoOff, Monitor, X, Crown, LogOut, Play, Info } from 'lucide-react';
 
 const Button = ({ children, onClick, variant = 'default', size = 'default', className = '', ...props }) => {
@@ -31,9 +32,12 @@ const CardContent = ({ children, className = '' }) => (
 );
 
 const ParticipantCard = ({ user, isSelf, selfViewTrack, micOn, videoOn, isActiveSpeaker, isHostCard, participantDetails, className = '' }) => {
-  const displayName = isSelf
+  // Sanitize the display name before rendering to prevent XSS
+  const rawDisplayName = isSelf
     ? `${user.displayName || 'You'}`
     : participantDetails[user.uid]?.displayName || `User-${user.uid.toString().substring(0, 4)}`;
+
+  const displayName = sanitizeInput(rawDisplayName);
 
   const videoContainerClasses = `relative w-full aspect-video bg-neutral-800 rounded-md overflow-hidden transition-all duration-300 ${isActiveSpeaker ? 'ring-2 ring-green-500 ring-offset-2 ring-offset-neutral-900' : ''}`;
 

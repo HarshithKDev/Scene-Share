@@ -1,12 +1,22 @@
 // src/utils/sanitize.js
 import DOMPurify from 'dompurify';
 
+/**
+ * --- MODIFICATION ---
+ * Sanitizes a string by stripping out all HTML tags.
+ * This is the safest way to prevent XSS when rendering plain text.
+ * @param {string} input The string to sanitize.
+ * @returns {string} The sanitized, plain-text string.
+ */
 export const sanitizeInput = (input) => {
-  return DOMPurify.sanitize(input);
+  if (!input || typeof input !== 'string') {
+    return '';
+  }
+  // This configuration removes all HTML tags, preventing XSS.
+  return DOMPurify.sanitize(input, { ALLOWED_TAGS: [], ALLOWED_ATTR: [] });
 };
 
 /**
- * --- NEW FUNCTION ---
  * Sanitizes a room ID by removing any characters that are not
  * alphanumeric, hyphens, or underscores.
  * @param {string} input The room ID to sanitize.

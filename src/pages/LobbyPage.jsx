@@ -1,11 +1,11 @@
 // src/pages/LobbyPage.jsx
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+// --- MODIFICATION: Import sanitizeInput ---
 import { sanitizeInput } from '../utils/sanitize';
 import ThemeToggle from '../components/ThemeToggle';
 import { useTheme } from '../context/ThemeContext';
 import { Button } from '../components/ui/Button';
-// --- FIX: Corrected the import path for Card components ---
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/Card';
 import { Plus, LogIn, User, LogOut } from 'lucide-react';
 
@@ -17,6 +17,7 @@ const LobbyPage = ({ onCreateRoom, onJoinRoom, onEditUsername }) => {
 
   const handleJoinRoom = (e) => {
     e.preventDefault();
+    // Note: sanitizeInput is already used here, now with the stricter version.
     const sanitizedRoomId = sanitizeInput(roomId.trim());
     if (sanitizedRoomId) onJoinRoom(sanitizedRoomId);
   };
@@ -47,7 +48,8 @@ const LobbyPage = ({ onCreateRoom, onJoinRoom, onEditUsername }) => {
        <main className="container mx-auto px-4 min-h-screen flex flex-col items-center justify-center pt-28 pb-12">
          <div className="text-center mb-12">
            <h2 className="text-4xl sm:text-5xl font-bold tracking-tight">
-             Welcome, {user?.displayName || 'User'}!
+             {/* --- MODIFICATION: Sanitize the display name before rendering --- */}
+             Welcome, {sanitizeInput(user?.displayName) || 'User'}!
            </h2>
            <p className="text-neutral-400 text-xl mt-2">
              Create or join a room to start streaming with friends.
