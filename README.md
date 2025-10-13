@@ -27,7 +27,6 @@
     </li>
     <li><a href="#features">Features</a></li>
     <li><a href="#project-structure">Project Structure</a></li>
-    <li><a href="#security-considerations">Security Considerations</a></li>
     <li><a href="#deployment">Deployment</a></li>
     <li><a href="#license">License</a></li>
     <li><a href="#contact">Contact</a></li>
@@ -157,17 +156,6 @@ The project is a monorepo with a clear separation between the client and server 
 └── package.json          # Frontend dependencies and scripts
 ```
 
-## Security Considerations
-
-Security is a priority in Scene-Share. Here are some of the measures implemented:
-
-* **Server-Side Token Generation:** Agora RTC tokens are generated securely on the backend, preventing the exposure of the Agora App Certificate on the client-side.
-* **Authenticated API Endpoints:** All backend routes are protected by a middleware that verifies the user's Firebase ID token, ensuring that only authenticated users can create rooms or get tokens.
-* **Input Sanitization:** User-provided inputs like usernames and room IDs are sanitized using `DOMPurify` to mitigate the risk of Cross-Site Scripting (XSS) attacks.
-* **CORS Policy:** A strict Cross-Origin Resource Sharing (CORS) policy is enforced on the server to only allow requests from whitelisted origins.
-* **Rate Limiting:** The backend API implements rate limiting to protect against brute-force attacks and abuse.
-* **Environment Variables:** All sensitive credentials and keys are managed through environment variables and are excluded from version control via `.gitignore`.
-
 ## Deployment
 
 This application is configured for seamless deployment to **Vercel**.
@@ -183,7 +171,7 @@ Distributed under the MIT License. See `LICENSE` for more information.
 
 ## Contact
 
-Your Name - [@Harsh0189](https://x.com/Harsh0189) - harshithkotian999@gmail.com
+Harshith K - [@Harsh0189](https://x.com/Harsh0189) - harshithkotian999@gmail.com
 
 Project Link: [https://github.com/harshithkdev/scene-share](https://github.com/harshithkdev/scene-share)
 
