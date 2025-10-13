@@ -8,9 +8,9 @@
     <a href="https://scene-share.vercel.app/"><strong>View Demo »</strong></a>
     <br />
     <br />
-    <a href="https://github.com/your-username/scene-share/issues">Report Bug</a>
+    <a href="https://github.com/HarshithKDev/scene-share/issues">Report Bug</a>
     ·
-    <a href="https://github.com/your-username/scene-share/issues">Request Feature</a>
+    <a href="https://github.com/HarshithKDev/scene-share/issues">Request Feature</a>
   </p>
 </div>
 
