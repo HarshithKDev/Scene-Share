@@ -49,7 +49,7 @@ This project leverages a modern and robust technology stack for both the fronten
 **Backend:**
 * ![Node.js](https://img.shields.io/badge/Node.js-43853D?logo=node.js)
 * ![Express.js](https://img.shields.io/badge/Express.js-000000?logo=express)
-* ![Firebase](https://img.shields.io/badge/Firebase-FFCA28?logo=firebase) (Authentication & Firestore)
+* ![Firebase](https://img.shields.io/badge/Firebase-FFCA28?logo=firebase) ![Auth & Firestore](https://img.shields.io/badge/Authentication%20%26%20Firestore-grey)
 * ![Agora Token Server](https://img.shields.io/badge/Agora-Tokens-blue)
 
 **Deployment:**
