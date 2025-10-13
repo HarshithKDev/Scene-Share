@@ -3,7 +3,7 @@
 <div align="center">
   <img src="./src/assets/logo.png" alt="Scene-Share Logo" width="150">
   <p align="center">
-    A real-time video streaming application for watching screen-shared content with friends.
+    A real-time co-watching application for you and your friends.
     <br />
     <a href="https://scene-share.vercel.app/"><strong>View Demo »</strong></a>
     <br />
