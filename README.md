@@ -138,7 +138,8 @@ You will also need to set up accounts for:
 ## Project Structure
 
 The project is a monorepo with a clear separation between the client and server code.
-
+```
+/
 ├── server/               # Node.js & Express Backend
 │   └── index.js          # API endpoints for room creation & token generation
 │
@@ -154,7 +155,7 @@ The project is a monorepo with a clear separation between the client and server 
 ├── vercel.json           # Deployment configuration for Vercel
 ├── vite.config.js        # Vite build tool configuration
 └── package.json          # Frontend dependencies and scripts
-
+```
 
 ## Security Considerations
 
@@ -186,6 +187,3 @@ Your Name - [@your_twitter](https://twitter.com/your_twitter) - harshithkotian99
 
 Project Link: [https://github.com/your-username/scene-share](https://github.com/your-username/scene-share)
 
-
-
-Gemini can make mistakes, 
