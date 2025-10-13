@@ -71,7 +71,8 @@ export const fetchAgoraToken = async (channelName, uid, getIdToken) => {
         // --- FIX: Return the entire data object ---
         return data;
     } catch (error) {
-        console.error("❌ Error fetching Agora token:", error);
+        // Comment out the console.error to prevent logging expected 404s
+        // console.error("❌ Error fetching Agora token:", error);
         throw error;
     }
 };

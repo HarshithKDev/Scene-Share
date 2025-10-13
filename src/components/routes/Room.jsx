@@ -6,6 +6,7 @@ import { fetchAgoraToken } from '../../services/agoraApi';
 import { AgoraRTCProvider } from "agora-rtc-react";
 import AgoraRTC from "agora-rtc-sdk-ng";
 import { Button } from '../ui/Button';
+import { useToast } from '../../context/ToastContext';
 
 const StreamRoomPage = lazy(() => import('../../pages/StreamRoomPage'));
 
@@ -13,6 +14,7 @@ const Room = () => {
     const { roomId } = useParams();
     const navigate = useNavigate();
     const { user } = useAuth();
+    const { addToast } = useToast();
 
     const [agoraToken, setAgoraToken] = useState(null);
     const [isHost, setIsHost] = useState(null);
@@ -35,12 +37,12 @@ const Room = () => {
                 setIsHost(data.isHost);
                 setHostUid(data.hostUid);
             } catch (err) {
-                console.error('Token fetch error:', err);
-                // --- FIX: Set a default value for isHost to exit the loading state on error ---
+                // Comment out the console.error to prevent logging expected 404s
+                // console.error('Token fetch error:', err);
                 setIsHost(false); 
                 if (err.message.includes('404')) {
-                    // This now correctly extracts the "Room not found." message
-                    setError('Room not found. Please check the ID and try again.');
+                    addToast('Please enter a valid Room ID.', 'error');
+                    navigate('/');
                 } else {
                     setError(`Failed to join room: ${err.message}`);
                 }
@@ -48,7 +50,7 @@ const Room = () => {
                 setLoading(false);
             }
         }
-    }, [roomId, user]);
+    }, [roomId, user, addToast, navigate]);
 
     useEffect(() => {
         getToken();
