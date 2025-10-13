@@ -71,7 +71,7 @@ You will also need to set up accounts for:
 
 1.  **Clone the repo**
     ```sh
-    git clone [https://github.com/harshithkdev/scene-share](https://github.com/harshithkdev/scene-share)
+    git clone https://github.com/harshithkdev/scene-share
     cd scene-share
     ```
 
