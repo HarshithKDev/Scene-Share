@@ -1,112 +1,191 @@
-# Scene-Share: Technical Implementation Deep Dive
+# Scene-Share
 
-## 1. Introduction
+<div align="center">
+  <img src="https://placehold.co/150x150" alt="Scene-Share Logo">
+  <p align="center">
+    A real-time video streaming application for watching screen-shared content with friends.
+    <br />
+    <a href="https://scene-share.vercel.app/"><strong>View Demo »</strong></a>
+    <br />
+    <br />
+    <a href="https://github.com/your-username/scene-share/issues">Report Bug</a>
+    ·
+    <a href="https://github.com/your-username/scene-share/issues">Request Feature</a>
+  </p>
+</div>
 
-Scene-Share is a real-time video streaming application designed for small groups of friends to watch screen-shared content together. This document provides a detailed breakdown of its implementation, architecture, and security considerations. The core purpose is to stream videos, movies, or series from a host's laptop via screen sharing. The application is intended for small groups of 3-5 people at maximum.
+<details>
+  <summary>Table of Contents</summary>
+  <ol>
+    <li><a href="#about-the-project">About The Project</a></li>
+    <li><a href="#built-with">Built With</a></li>
+    <li><a href="#getting-started">Getting Started</a>
+      <ul>
+        <li><a href="#prerequisites">Prerequisites</a></li>
+        <li><a href="#installation">Installation</a></li>
+      </ul>
+    </li>
+    <li><a href="#features">Features</a></li>
+    <li><a href="#project-structure">Project Structure</a></li>
+    <li><a href="#security-considerations">Security Considerations</a></li>
+    <li><a href="#deployment">Deployment</a></li>
+    <li><a href="#license">License</a></li>
+    <li><a href="#contact">Contact</a></li>
+  </ol>
+</details>
 
-## 2. Core Technologies
+---
 
-The application is built on a modern web stack, leveraging the following technologies:
+## About The Project
 
-* **Frontend:**
-    * **React 19:** For building the user interface.
-    * **Vite:** As the build tool for a fast development experience.
-    * **Tailwind CSS:** For utility-first styling.
-    * **React Router 7:** For client-side routing.
-    * **Agora RTC SDK for React:** For real-time video and audio communication.
-* **Backend:**
-    * **Node.js with Express:** For the server-side logic.
-    * **Firebase Authentication:** For user management and authentication.
-    * **Firestore:** As the database to manage room information.
-    * **Agora Token Server:** For generating secure RTC tokens.
-* **Deployment:**
-    * **Vercel:** The application is configured for easy deployment on the Vercel platform.
+**Scene-Share** is a web-based application designed for small groups of friends to watch screen-shared content together in real-time. The primary use-case is for a "host" to stream movies, series, or any other video content from their computer to a private, invite-only room.
 
-## 3. Project Structure
+Participants can join with their camera and microphone, creating a shared viewing experience. The application is built with security and performance in mind, ensuring a smooth and safe environment for its users.
 
-The project is organized with a `server` directory for the backend and a `src` directory for the frontend React application.
+## Built With
 
-|-- server/
-|   |-- index.js         # Express server for Agora token generation and room management
-|   |-- package.json
-|-- src/
-|   |-- components/      # Reusable UI components and routes
-|   |-- context/         # React context for authentication, theme, and toasts
-|   |-- pages/           # Main application pages (Lobby, Login, StreamRoom)
-|   |-- services/        # API calls to the backend
-|   |-- utils/           # Utility functions like input sanitization
-|   |-- App.jsx          # Main application component with routing
-|   |-- main.jsx         # Entry point of the React application
-|-- vercel.json          # Vercel deployment configuration
-|-- vite.config.js       # Vite configuration file
-|-- tailwind.config.js   # Tailwind CSS configuration
-|-- package.json
+This project leverages a modern and robust technology stack for both the frontend and backend.
 
-## 4. Implementation Flow and Features
+**Frontend:**
+* ![React](https://img.shields.io/badge/React-19-blue?logo=react)
+* ![Vite](https://img.shields.io/badge/Vite-black?logo=vite)
+* ![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?logo=tailwind-css)
+* ![React Router](https://img.shields.io/badge/React_Router-v7-red?logo=react-router)
+* ![Agora RTC SDK](https://img.shields.io/badge/Agora-RTC-blue)
 
-### 4.1. Authentication
+**Backend:**
+* ![Node.js](https://img.shields.io/badge/Node.js-43853D?logo=node.js)
+* ![Express.js](https://img.shields.io/badge/Express.js-000000?logo=express)
+* ![Firebase](https://img.shields.io/badge/Firebase-FFCA28?logo=firebase) (Authentication & Firestore)
+* ![Agora Token Server](https://img.shields.io/badge/Agora-Tokens-blue)
 
-* **Firebase Integration:** The application uses Firebase for user authentication, supporting both email/password and Google Sign-In.
-* **Authentication Context:** A `AuthContext` (`src/context/AuthContext.jsx`) is used to manage the user's authentication state throughout the application.
-* **Protected Routes:** The `ProtectedRoute` component ensures that only authenticated users can access the main application lobby and streaming rooms.
-* **New User Onboarding:** When a new user signs up, they are prompted to set a username via a modal (`src/components/UsernameModal.jsx`). This ensures that all users have a display name.
+**Deployment:**
+* ![Vercel](https://img.shields.io/badge/Vercel-000000?logo=vercel)
 
-### 4.2. Lobby and Room Management
+## Getting Started
 
-* **Lobby Page:** After logging in, users are directed to the `LobbyPage`, where they can either create a new room or join an existing one.
-* **Room Creation:**
-    * When a user clicks "Create Room," a unique 6-digit room code is generated on the client-side.
-    * A request is then sent to the backend's `/create-room` endpoint to register the new room in Firestore, with the creator's UID stored as the `hostUid`.
-* **Joining a Room:**
-    * Users can join a room by entering the room ID in the lobby.
-    * Input sanitization is performed on the room ID to prevent malicious input.
+To get a local copy up and running, follow these simple steps.
 
-### 4.3. Real-time Communication with Agora
+### Prerequisites
 
-* **Agora Integration:** The core streaming functionality is powered by the Agora RTC SDK. The `StreamRoomPage.jsx` and `useStreamRoomHooks.js` are the central files for managing the Agora client and stream lifecycle.
-* **Token Generation:**
-    * To join an Agora channel, a secure token is required. When a user navigates to a room, the frontend requests a token from the backend's `/get-agora-token` endpoint.
-    * The backend verifies the user's Firebase ID token before generating and returning an Agora token. This ensures that only authenticated users can get a token.
-* **Dual-Client Approach for Screen Sharing:**
-    * The application uses a "dual-client" approach for screen sharing. The host has two Agora clients: one for their camera and microphone, and a second one specifically for the screen share stream.
-    * This allows for separate control over the camera/mic and the screen share.
-* **Stream Lifecycle:**
-    * The `useStreamRoomHooks` custom hook manages all aspects of the stream, including joining the channel, publishing local tracks (camera and microphone), subscribing to remote users, and handling token expiration.
-    * When the host starts a stream, a new screen share client joins the channel with a unique UID (e.g., `{user.uid}-screen`) and publishes the screen video and audio tracks.
-    * Other participants in the room are notified of the new stream and automatically subscribe to it. Only the host can share their screen, while all other participants can view everyone's video camera and the host's screen share.
+You need to have `npm` (or `yarn`/`pnpm`) and Node.js (v18 or higher) installed on your machine.
 
-### 4.4. Backend
+You will also need to set up accounts for:
+* **Firebase:** To handle user authentication and Firestore database.
+* **Agora:** To get your App ID and App Certificate for video streaming.
 
-* **Express Server:** A simple Express server handles all backend logic.
-* **Endpoints:**
-    * `/create-room`: Creates a new room in Firestore and assigns the host.
-    * `/get-agora-token`: Verifies the user's Firebase token and generates an Agora RTC token.
-    * `/health`: A health check endpoint to monitor the server's status.
-* **Firebase Admin SDK:** The backend uses the Firebase Admin SDK to verify user ID tokens, ensuring that all API requests are authenticated.
+### Installation
 
-## 5. Security Considerations
+1.  **Clone the repo**
+    ```sh
+    git clone [https://github.com/your-username/scene-share.git](https://github.com/your-username/scene-share.git)
+    cd scene-share
+    ```
 
-The application implements several security best practices:
+2.  **Install NPM packages for the frontend**
+    ```sh
+    npm install
+    ```
 
-* **Authenticated API Endpoints:** All backend endpoints are protected with a middleware that verifies the user's Firebase ID token. This prevents unauthorized access to the API.
-* **Input Sanitization:** User-provided input, such as usernames and room IDs, is sanitized using `DOMPurify` to prevent Cross-Site Scripting (XSS) attacks.
-* **Secure Token Generation:** Agora tokens are generated on the server-side, which is a crucial security measure. Exposing your Agora App Certificate on the client-side would be a major security risk.
-* **Environment Variables:** All sensitive keys (Firebase config, Agora App ID, etc.) are stored in environment variables and are not hardcoded in the source code. The `.gitignore` file correctly excludes the `.env` file from version control.
+3.  **Install NPM packages for the backend**
+    ```sh
+    cd server
+    npm install
+    cd ..
+    ```
 
-## 6. Production Readiness and Potential Improvements
+4.  **Configure Environment Variables**
 
-The application is well-structured and follows modern development practices. As per your request to analyze for production readiness and security flaws, here is an assessment:
+    Create a `.env` file in the root of the project for the frontend:
+    ```
+    VITE_FIREBASE_API_KEY=your_firebase_api_key
+    VITE_FIREBASE_AUTH_DOMAIN=your_firebase_auth_domain
+    VITE_FIREBASE_PROJECT_ID=your_firebase_project_id
+    VITE_FIREBASE_STORAGE_BUCKET=your_firebase_storage_bucket
+    VITE_FIREBASE_MESSAGING_SENDER_ID=your_firebase_messaging_sender_id
+    VITE_FIREBASE_APP_ID=your_firebase_app_id
+    VITE_AGORA_APP_ID=your_agora_app_id
+    ```
 
-* **Current State:** The application is in a good state. The separation of concerns between frontend and backend, server-side token generation, and input sanitization are all standard practices that make it robust.
-* **Potential Improvements:**
-    * **Enhanced Error Handling:** While there is error handling for connections and tokens, more granular user-facing messages for scenarios like "Room not found" or "Invalid room ID" would improve the user experience.
-    * **UI/UX Refinements:**
-        * The UI for copying the room code in `StreamRoomLayout.jsx` is a good feature.
-        * Consider adding a visual indicator (e.g., a highlighted border) to show who is currently speaking.
-    * **Testing:** Implementing unit and integration tests would further increase the application's reliability for production.
+    Create another `.env` file in the `/server` directory for the backend:
+    ```
+    PORT=8080
+    AGORA_APP_ID=your_agora_app_id
+    AGORA_APP_CERTIFICATE=your_agora_app_certificate
+    FIREBASE_SERVICE_ACCOUNT_KEY=your_firebase_service_account_json_content
+    ```
+    *Note: `FIREBASE_SERVICE_ACCOUNT_KEY` should be the JSON content of your Firebase service account key, usually as a single line.*
 
-## 7. Conclusion
+5.  **Run the application**
 
-Scene-Share is a well-designed application that effectively leverages React, Firebase, and Agora to provide a real-time video streaming experience. The code is clean, organized, and follows security best practices, making it a solid and production-ready foundation.
+    To run both the frontend and backend concurrently:
+    ```sh
+    npm run dev:all
+    ```
+    This will start the frontend on `http://localhost:5173` and the backend on `http://localhost:8080`.
+
+## Features
+
+* **Real-time Video & Audio:** High-quality, low-latency video and audio powered by Agora.
+* **Secure Screen Sharing:** Only the host of the room can share their screen.
+* **User Authentication:** Secure login and sign-up using Firebase Authentication (Email/Password & Google Sign-In).
+* **Private Rooms:** Room creation with a unique, randomly generated 6-digit ID.
+* **Host Controls:** The host initiates and stops the screen share stream for all participants.
+* **Active Speaker Indication:** A visual highlight shows who is currently speaking.
+* **Responsive Design:** A clean, modern UI that works on both desktop and mobile devices.
+* **Dark Mode:** Built-in theme toggling for user comfort.
+
+## Project Structure
+
+The project is a monorepo with a clear separation between the client and server code.
+
+├── server/               # Node.js & Express Backend
+│   └── index.js          # API endpoints for room creation & token generation
+│
+├── src/                  # React Frontend Application
+│   ├── components/       # Reusable UI components (Button, Card, etc.) & Routes
+│   ├── context/          # React Context providers (Auth, Theme, Toast)
+│   ├── pages/            # Top-level page components (Lobby, Login, StreamRoom)
+│   ├── services/         # API service calls (e.g., fetchAgoraToken)
+│   ├── utils/            # Utility functions (e.g., input sanitization)
+│   ├── App.jsx           # Main component with routing logic
+│   └── main.jsx          # Application entry point
+│
+├── vercel.json           # Deployment configuration for Vercel
+├── vite.config.js        # Vite build tool configuration
+└── package.json          # Frontend dependencies and scripts
 
 
+## Security Considerations
+
+Security is a priority in Scene-Share. Here are some of the measures implemented:
+
+* **Server-Side Token Generation:** Agora RTC tokens are generated securely on the backend, preventing the exposure of the Agora App Certificate on the client-side.
+* **Authenticated API Endpoints:** All backend routes are protected by a middleware that verifies the user's Firebase ID token, ensuring that only authenticated users can create rooms or get tokens.
+* **Input Sanitization:** User-provided inputs like usernames and room IDs are sanitized using `DOMPurify` to mitigate the risk of Cross-Site Scripting (XSS) attacks.
+* **CORS Policy:** A strict Cross-Origin Resource Sharing (CORS) policy is enforced on the server to only allow requests from whitelisted origins.
+* **Rate Limiting:** The backend API implements rate limiting to protect against brute-force attacks and abuse.
+* **Environment Variables:** All sensitive credentials and keys are managed through environment variables and are excluded from version control via `.gitignore`.
+
+## Deployment
+
+This application is configured for seamless deployment to **Vercel**.
+
+1.  **Push your code to a GitHub repository.**
+2.  **Import the repository into your Vercel dashboard.**
+3.  **Configure Environment Variables:** Add all the environment variables from your `.env` and `server/.env` files to the Vercel project settings. Make sure to correctly handle the `FIREBASE_SERVICE_ACCOUNT_KEY` as a multi-line variable if needed.
+4.  **Deploy:** Vercel will automatically use the `vercel.json` and `package.json` build scripts to deploy the application. The `vercel.json` file is configured to handle the serverless functions and client-side routing correctly.
+
+## License
+
+Distributed under the MIT License. See `LICENSE` for more information.
+
+## Contact
+
+Your Name - [@your_twitter](https://twitter.com/your_twitter) - harshithkotian999@gmail.com
+
+Project Link: [https://github.com/your-username/scene-share](https://github.com/your-username/scene-share)
+
+
+
+Gemini can make mistakes, 
