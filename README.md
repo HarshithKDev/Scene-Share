@@ -78,7 +78,7 @@ You will also need to set up accounts for:
 
 1.  **Clone the repo**
     ```sh
-    git clone [https://github.com/your-username/scene-share.git](https://github.com/your-username/scene-share.git)
+    git clone [https://github.com/harshithkdev/scene-share](https://github.com/harshithkdev/scene-share)
     cd scene-share
     ```
 
@@ -183,7 +183,7 @@ Distributed under the MIT License. See `LICENSE` for more information.
 
 ## Contact
 
-Your Name - [@your_twitter](https://twitter.com/your_twitter) - harshithkotian999@gmail.com
+Your Name - [@Harsh0189](https://x.com/Harsh0189) - harshithkotian999@gmail.com
 
-Project Link: [https://github.com/your-username/scene-share](https://github.com/your-username/scene-share)
+Project Link: [https://github.com/harshithkdev/scene-share](https://github.com/harshithkdev/scene-share)
 
