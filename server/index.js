@@ -4,25 +4,45 @@ const { RtcTokenBuilder, RtcRole } = require('agora-token');
 const cors = require('cors');
 require('dotenv').config();
 const admin = require('firebase-admin');
+const rateLimit = require('express-rate-limit');
 
 const app = express();
 app.use(express.json());
 app.use(cors());
 
+// Rate limiting middleware
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per windowMs
+  standardHeaders: true,
+  legacyHeaders: false, 
+  message: 'Too many requests from this IP, please try again after 15 minutes',
+});
+
 try {
+  if (!process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
+    throw new Error('FIREBASE_SERVICE_ACCOUNT_KEY environment variable is not set.');
+  }
   const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
   admin.initializeApp({
     credential: admin.credential.cert(serviceAccount)
   });
 } catch (error) {
-  console.error('Error initializing Firebase Admin SDK:', error);
-  // Exiting the process if Firebase initialization fails.
-  process.exit(1);
+  console.error('CRITICAL: Error initializing Firebase Admin SDK. Please check your FIREBASE_SERVICE_ACCOUNT_KEY environment variable.');
+  console.error(error);
+  // We will let the server start, but endpoints will fail with a clear message.
 }
 
-const db = admin.firestore();
-const roomsCollection = db.collection('rooms');
+const db = admin.apps.length ? admin.firestore() : null;
+const roomsCollection = db ? db.collection('rooms') : null;
 const EXPIRATION_HOURS = 24;
+
+const checkFirebaseInit = (req, res, next) => {
+  if (!admin.apps.length || !db) {
+    return res.status(500).json({ error: 'Firebase Admin SDK is not initialized. Check server logs.' });
+  }
+  next();
+};
 
 const verifyFirebaseToken = async (req, res, next) => {
   const authHeader = req.headers.authorization;
@@ -39,21 +59,18 @@ const verifyFirebaseToken = async (req, res, next) => {
   }
 };
 
-// --- HELPER: A simple regex to validate room IDs ---
 const isValidChannelName = (name) => /^[a-zA-Z0-9_-]+$/.test(name);
 
-app.post('/create-room', verifyFirebaseToken, async (req, res) => {
-    const { channelName } = req.body;
-    const { uid } = req.user;
-
-    // --- MODIFICATION: Added server-side validation for the channel name ---
-    if (!channelName || !isValidChannelName(channelName)) {
-        return res.status(400).json({ error: 'Invalid channelName format.' });
-    }
-
+app.post('/create-room', apiLimiter, checkFirebaseInit, verifyFirebaseToken, async (req, res) => {
     try {
+        const { channelName } = req.body;
+        const { uid } = req.user;
+
+        if (!channelName || !isValidChannelName(channelName)) {
+            return res.status(400).json({ error: 'Invalid channelName format.' });
+        }
+
         const expirationDate = new Date(Date.now() + 3600 * 1000 * EXPIRATION_HOURS);
-        // Using a transaction to make room creation atomic
         await db.runTransaction(async (transaction) => {
             const roomRef = roomsCollection.doc(channelName);
             const roomDoc = await transaction.get(roomRef);
@@ -77,18 +94,16 @@ app.post('/create-room', verifyFirebaseToken, async (req, res) => {
     }
 });
 
-app.post('/heartbeat', verifyFirebaseToken, async (req, res) => {
-  const { channelName } = req.body;
-  const { uid } = req.user;
+app.post('/heartbeat', apiLimiter, checkFirebaseInit, verifyFirebaseToken, async (req, res) => {
+  try {
+    const { channelName } = req.body;
+    const { uid } = req.user;
 
-    // --- MODIFICATION: Added server-side validation for the channel name ---
     if (!channelName || !isValidChannelName(channelName)) {
         return res.status(400).json({ error: 'Invalid channelName format.' });
     }
 
-  const roomRef = roomsCollection.doc(channelName);
-  
-  try {
+    const roomRef = roomsCollection.doc(channelName);
     const roomDoc = await roomRef.get();
     if (!roomDoc.exists) {
       return res.status(404).json({ error: 'Room not found.' });
@@ -106,60 +121,52 @@ app.post('/heartbeat', verifyFirebaseToken, async (req, res) => {
     console.log(`💓 Heartbeat received for room [${channelName}]. Expiration extended.`);
     res.status(200).json({ message: 'Room kept alive.' });
   } catch (error) {
-    console.error(`Error processing heartbeat for room [${channelName}]:`, error);
+    console.error(`Error processing heartbeat:`, error);
     res.status(500).json({ error: 'Failed to process heartbeat.' });
   }
 });
 
 
-app.post('/get-agora-token', verifyFirebaseToken, async (req, res) => {
-  const { channelName } = req.body;
-  const { uid: requestingUid, name: displayName } = req.user;
+app.post('/get-agora-token', apiLimiter, checkFirebaseInit, verifyFirebaseToken, async (req, res) => {
+  try {
+    const { channelName } = req.body;
+    const { uid: requestingUid, name: displayName } = req.user;
 
-    // --- MODIFICATION: Changed validation to use the regex helper ---
     if (!channelName || !isValidChannelName(channelName)) {
         return res.status(400).json({ error: 'Invalid channelName format.' });
     }
 
-  let hostUid;
-  try {
-      const roomDoc = await roomsCollection.doc(channelName).get();
-      if (!roomDoc.exists) {
-          console.log(`❌ Room not found: [${channelName}]`);
-          return res.status(404).json({ error: 'Room not found.' });
-      }
-      hostUid = roomDoc.data().hostUid;
+    let hostUid;
+    const roomDoc = await roomsCollection.doc(channelName).get();
+    if (!roomDoc.exists) {
+        console.log(`❌ Room not found: [${channelName}]`);
+        return res.status(404).json({ error: 'Room not found.' });
+    }
+    hostUid = roomDoc.data().hostUid;
 
-      const participantRef = roomsCollection.doc(channelName).collection('participants').doc(requestingUid);
-      await participantRef.set({
-          displayName: displayName || `User-${requestingUid.substring(0, 4)}`,
-          lastSeen: admin.firestore.FieldValue.serverTimestamp()
-      }, { merge: true });
+    const participantRef = roomsCollection.doc(channelName).collection('participants').doc(requestingUid);
+    await participantRef.set({
+        displayName: displayName || `User-${requestingUid.substring(0, 4)}`,
+        lastSeen: admin.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
 
-  } catch (error) {
-      console.error("Error getting room or updating participant:", error);
-      return res.status(500).json({ error: 'Failed to process room details.' });
-  }
+    const isScreenShare = req.body.uid && req.body.uid === `${requestingUid}-screen`;
+    const tokenUid = isScreenShare ? req.body.uid : requestingUid;
 
-  // Ensure screen-share UID is derived from the authenticated user
-  const isScreenShare = req.body.uid && req.body.uid === `${requestingUid}-screen`;
-  const tokenUid = isScreenShare ? req.body.uid : requestingUid;
+    const sanitizedChannelName = channelName.replace(/[^a-zA-Z0-9_-]/g, '');
+    const sanitizedTokenUid = tokenUid.replace(/[^a-zA-Z0-9_-]/g, '');
 
-  const sanitizedChannelName = channelName.replace(/[^a-zA-Z0-9_-]/g, '');
-  const sanitizedTokenUid = tokenUid.replace(/[^a-zA-Z0-9_-]/g, '');
+    if (sanitizedChannelName.length === 0 || sanitizedTokenUid.length === 0) {
+      return res.status(400).json({ error: 'Invalid channelName or uid.' });
+    }
 
-  if (sanitizedChannelName.length === 0 || sanitizedTokenUid.length === 0) {
-    return res.status(400).json({ error: 'Invalid channelName or uid.' });
-  }
+    const appId = process.env.AGORA_APP_ID;
+    const appCertificate = process.env.AGORA_APP_CERTIFICATE;
+    if (!appId || !appCertificate) {
+      console.error('Agora App ID or Certificate is missing');
+      return res.status(500).json({ error: 'Server configuration error.' });
+    }
 
-  const appId = process.env.AGORA_APP_ID;
-  const appCertificate = process.env.AGORA_APP_CERTIFICATE;
-  if (!appId || !appCertificate) {
-    console.error('Agora App ID or Certificate is missing');
-    return res.status(500).json({ error: 'Server configuration error.' });
-  }
-
-  try {
     const role = RtcRole.PUBLISHER;
     const expirationTimeInSeconds = 3600;
     const currentTimestamp = Math.floor(Date.now() / 1000);
@@ -176,31 +183,32 @@ app.post('/get-agora-token', verifyFirebaseToken, async (req, res) => {
       privilegeExpiredTs
     );
     
-    // --- MODIFICATION: Add hostUid to the response ---
     res.status(200).json({ token, uid: sanitizedTokenUid, isHost: hostUid === requestingUid, hostUid });
   } catch (error) {
-    console.error('❌ Error generating Agora token:', error);
+    console.error('❌ Error in /get-agora-token endpoint:', error);
     res.status(500).json({ error: 'Failed to generate token: ' + error.message });
   }
 });
 
 
 app.get('/health', async (req, res) => {
-  let activeRooms = 0;
   try {
-      const snapshot = await roomsCollection.get();
-      activeRooms = snapshot.size;
-  } catch (error) {
-      console.error("Error getting active rooms count:", error);
-  }
+    let activeRooms = 0;
+    if (roomsCollection) {
+        const snapshot = await roomsCollection.get();
+        activeRooms = snapshot.size;
+    }
 
-  res.status(200).json({
-    status: 'OK',
-    agoraAppId: process.env.AGORA_APP_ID ? 'Configured' : 'Missing',
-    firebase: admin.apps.length > 0 ? 'Configured' : 'Missing',
-    activeRooms: activeRooms,
-    timestamp: new Date().toISOString()
-  });
+    res.status(200).json({
+      status: 'OK',
+      agoraAppId: process.env.AGORA_APP_ID ? 'Configured' : 'Missing',
+      firebase: admin.apps.length > 0 ? 'Configured' : 'Missing',
+      activeRooms: activeRooms,
+      timestamp: new Date().toISOString()
+    });
+  } catch(error) {
+    res.status(500).json({ status: 'Error', message: error.message });
+  }
 });
 
 // This block allows the server to run locally
