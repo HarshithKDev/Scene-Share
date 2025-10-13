@@ -1,7 +1,7 @@
 # Scene-Share
 
 <div align="center">
-  <img src="https://placehold.co/150x150" alt="Scene-Share Logo">
+  <img src="./src/assets/logo.png" alt="Scene-Share Logo" width="150">
   <p align="center">
     A real-time video streaming application for watching screen-shared content with friends.
     <br />
