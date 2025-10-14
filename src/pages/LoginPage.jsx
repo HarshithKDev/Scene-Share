@@ -81,12 +81,12 @@ const LoginPage = () => {
               <input
                 type="email" value={email} onChange={(e) => setEmail(e.target.value)}
                 className="w-full px-4 py-3 bg-neutral-950 rounded-lg border-2 border-neutral-700 focus:border-white focus:outline-none transition-colors"
-                placeholder="your@email.com" required
+                placeholder="Email" required
               />
               <input
                 type="password" value={password} onChange={(e) => setPassword(e.target.value)}
                 className="w-full px-4 py-3 bg-neutral-950 rounded-lg border-2 border-neutral-700 focus:border-white focus:outline-none transition-colors"
-                placeholder="••••••••" required
+                placeholder="Password" required
               />
               <Button type="submit" className="w-full">
                 {isLogin ? 'Login' : 'Sign Up'}
