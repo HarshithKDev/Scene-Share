@@ -1,9 +1,7 @@
 // src/pages/LoginPage.jsx
 import React, { useState } from 'react';
 import { auth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, googleProvider } from '../firebase';
-import ThemeToggle from '../components/ThemeToggle';
-import { useTheme } from '../context/ThemeContext';
-import { useToast } from '../context/ToastContext'; // Make sure this is imported
+import { useToast } from '../context/ToastContext'; 
 import { Button } from '../components/ui/Button';
 import { Card, CardContent } from '../components/ui/Card';
 
@@ -18,7 +16,6 @@ const GoogleIcon = () => (
 );
 
 const LoginPage = () => {
-  const { theme, toggleTheme } = useTheme();
   const { addToast } = useToast();
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
@@ -70,10 +67,6 @@ const LoginPage = () => {
 
   return (
     <div className="min-h-screen bg-neutral-950 text-white flex items-center justify-center p-4 relative">
-      <div className="absolute top-6 right-6 z-50">
-        <ThemeToggle theme={theme} toggleTheme={toggleTheme} />
-      </div>
-
       <div className="w-full max-w-md">
         <h1 className="text-5xl font-bold text-center mb-8 tracking-tight">
           Scene-Share
@@ -112,7 +105,6 @@ const LoginPage = () => {
               </Button>
             </form>
 
-            {/* --- MODIFICATION: Added the separator here --- */}
             <div className="relative my-6">
               <div className="absolute inset-0 flex items-center">
                 <div className="w-full border-t border-neutral-700"></div>
