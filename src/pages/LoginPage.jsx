@@ -92,7 +92,7 @@ const LoginPage = () => {
                 onClick={() => setIsLogin(true)}
                 className={`flex-1 py-2 px-4 rounded-md transition-all duration-300 font-medium ${isLogin ? 'bg-neutral-800' : 'text-neutral-400 hover:text-white'}`}
               >
-                Login
+                Sign In
               </button>
               <button
                 onClick={() => setIsLogin(false)}
