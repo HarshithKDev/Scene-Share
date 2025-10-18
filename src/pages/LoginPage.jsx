@@ -24,12 +24,11 @@ const LoginPage = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
-  // --- MODIFICATION: Map Firebase error codes to user-friendly messages ---
   const getFriendlyErrorMessage = (errorCode) => {
     switch (errorCode) {
       case 'auth/invalid-credential':
-      case 'auth/wrong-password': // Often included under invalid-credential now, but good to keep
-      case 'auth/user-not-found': // Often included under invalid-credential now
+      case 'auth/wrong-password':
+      case 'auth/user-not-found':
         return 'Invalid email or password. Please try again.';
       case 'auth/email-already-in-use':
         return 'This email address is already registered.';
@@ -37,9 +36,7 @@ const LoginPage = () => {
         return 'Password is too weak. Please choose a stronger password.';
       case 'auth/too-many-requests':
         return 'Too many login attempts. Please try again later.';
-      // Add more specific cases as needed
       default:
-        // Generic message for unexpected errors
         return 'An authentication error occurred. Please try again.';
     }
   };
@@ -53,8 +50,7 @@ const LoginPage = () => {
         await createUserWithEmailAndPassword(auth, email, password);
       }
     } catch (err) {
-      // --- MODIFICATION: Use the mapping function ---
-      console.error("Firebase Auth Error:", err.code, err.message); // Log the original error for debugging
+      console.error("Firebase Auth Error:", err.code, err.message);
       const friendlyMessage = getFriendlyErrorMessage(err.code);
       addToast(friendlyMessage, 'error');
     }
@@ -64,9 +60,7 @@ const LoginPage = () => {
     try {
       await signInWithPopup(auth, googleProvider);
     } catch (err) {
-      // --- MODIFICATION: Use the mapping function ---
-      console.error("Firebase Google Sign-In Error:", err.code, err.message); // Log original error
-      // You might want a slightly different generic message for popup errors
+      console.error("Firebase Google Sign-In Error:", err.code, err.message);
       const friendlyMessage = err.code === 'auth/popup-closed-by-user'
         ? 'Sign-in cancelled.'
         : getFriendlyErrorMessage(err.code);
@@ -102,8 +96,6 @@ const LoginPage = () => {
               </button>
             </div>
 
-            {/* Inline error display is removed */}
-
             <form onSubmit={handleSubmit} className="space-y-4">
               <input
                 type="email" value={email} onChange={(e) => setEmail(e.target.value)}
@@ -116,12 +108,20 @@ const LoginPage = () => {
                 placeholder="Password" required
               />
               <Button type="submit" className="w-full">
-                {isLogin ? 'Login' : 'Sign Up'}
+                {isLogin ? 'Sign In' : 'Sign Up'}
               </Button>
             </form>
 
+            {/* --- MODIFICATION: Added the separator here --- */}
             <div className="relative my-6">
-              {/* Separator... */}
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-neutral-700"></div>
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="px-2 bg-neutral-900 text-neutral-400">
+                  Or continue with
+                </span>
+              </div>
             </div>
 
             <Button onClick={handleGoogleSignIn} variant="default" className="w-full">
