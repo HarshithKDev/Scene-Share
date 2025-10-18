@@ -1,11 +1,9 @@
-// src/App.jsx - FINAL VERSION
+// src/App.jsx 
 import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import { useToast } from './context/ToastContext';
-// --- FIX: Import auth and updateProfile from your project's firebase setup file ---
 import { auth, updateProfile } from './firebase';
-// --- MODIFICATION: Import the new sanitizeRoomId function ---
 import { sanitizeInput, sanitizeRoomId } from './utils/sanitize';
 
 import ErrorBoundary from './components/ErrorBoundary'; 
@@ -53,9 +51,6 @@ export default function App() {
     if (sanitizedUsername) {
       try {
         await updateProfile(auth.currentUser, { displayName: sanitizedUsername });
-        
-        // After updating, set the context with the fresh auth.currentUser object,
-        // which has all the necessary methods like getIdToken. This prevents the error.
         setUser(auth.currentUser);
         
         setShowUsernameModal(false);
@@ -66,13 +61,11 @@ export default function App() {
         addToast(`Error updating username: ${error.message}`, 'error');
       }
     }
-    // --- MODIFICATION END ---
   };
 
   const handleCreateRoom = async () => {
     const roomCode = Math.floor(100000 + Math.random() * 900000).toString();
     try {
-        // Now this will work every time because the user object is correct.
         const idToken = await user.getIdToken(); 
         const response = await fetch(`${BACKEND_URL}/create-room`, {
             method: 'POST',
@@ -96,7 +89,6 @@ export default function App() {
   };
 
   const handleJoinRoom = (id) => {
-    // --- MODIFICATION: Use the more specific sanitizeRoomId function ---
     const sanitizedId = sanitizeRoomId(id);
     if (sanitizedId && sanitizedId.length >= 6) {
       navigate(`/room/${sanitizedId}`, { state: { isHost: false } });
