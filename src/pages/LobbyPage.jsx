@@ -22,7 +22,7 @@ const LobbyPage = ({ onCreateRoom, onJoinRoom, onEditUsername }) => {
     <div className="min-h-screen bg-neutral-950 text-white transition-colors duration-300">
        <header className="absolute top-0 left-0 right-0 p-6 flex justify-between items-center z-20">
           {/* --- MODIFICATION START --- */}
-          <Link to="/" className="text-xl font-bold">
+          <Link to="/" className="text-xl font-bold bg-gradient-to-r from-white to-blue-200 bg-clip-text text-transparent"> {/* Added gradient classes */}
             Scene-Share
           </Link>
           {/* --- MODIFICATION END --- */}

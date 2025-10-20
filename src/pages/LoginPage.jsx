@@ -68,7 +68,7 @@ const LoginPage = () => {
   return (
     <div className="min-h-screen bg-neutral-950 text-white flex items-center justify-center p-4 relative">
       <div className="w-full max-w-md">
-        <h1 className="text-5xl font-bold text-center mb-8 tracking-tight">
+        <h1 className="text-5xl font-bold text-center mb-8 tracking-tight bg-gradient-to-r from-white to-blue-200 bg-clip-text text-transparent"> {/* Added gradient classes */}
           Scene-Share
         </h1>
 
