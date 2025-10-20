@@ -156,8 +156,8 @@ export default function LandingPage() {
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-20">
               <Link to="/login">
                 <button className="group relative inline-flex items-center justify-center rounded-xl text-lg font-bold transition-all h-14 px-10 bg-gradient-to-r from-blue-600 to-blue-500 text-white hover:shadow-2xl hover:shadow-blue-500/50 hover:scale-105">
-                  <span className="relative z-10">Start Watching Free</span>
-                  <PlayCircle className="ml-2 w-6 h-6 group-hover:rotate-90 transition-transform duration-300" />
+                  <span className="relative z-10">Start Watching</span>
+                  <PlayCircle className="ml-2 w-6 h-6 group-hover:rotate-360 transition-transform duration-300" /> {/* <-- Updated rotation */}
                 </button>
               </Link>
               <button onClick={() => scrollToSection('how-it-works')} className="inline-flex items-center justify-center rounded-xl text-lg font-semibold transition-all h-14 px-10 bg-neutral-800/50 text-white hover:bg-neutral-800 border border-neutral-700 hover:border-neutral-600">
@@ -186,7 +186,9 @@ export default function LandingPage() {
       <section id="features" className="relative py-24 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto relative z-10">
           <div className="text-center mb-20">
-            <h2 className="text-5xl sm:text-6xl font-black mb-6 bg-gradient-to-r from-white to-neutral-400 bg-clip-text text-transparent">Powerful Features</h2>
+            {/* --- MODIFICATION START: Adjusted text size --- */}
+            <h2 className="text-4xl sm:text-6xl font-black mb-6 bg-gradient-to-r from-white to-neutral-400 bg-clip-text text-transparent">Powerful Features</h2>
+            {/* --- MODIFICATION END --- */}
             <p className="text-xl text-neutral-400 max-w-2xl mx-auto">Everything you need for an amazing co-watching experience</p>
           </div>
 
@@ -242,17 +244,17 @@ export default function LandingPage() {
       <section id="how-it-works" className="relative py-24 px-4 sm:px-6 lg:px-8 bg-gradient-to-b from-neutral-900/50 to-transparent">
         <div className="max-w-7xl mx-auto relative z-10">
           <div className="text-center mb-20">
-            <h2 className="text-5xl sm:text-6xl font-black mb-6 bg-gradient-to-r from-white to-neutral-400 bg-clip-text text-transparent">Get Started in Seconds</h2>
+            {/* --- MODIFICATION START: Adjusted text size --- */}
+            <h2 className="text-4xl sm:text-6xl font-black mb-6 bg-gradient-to-r from-white to-neutral-400 bg-clip-text text-transparent">Get Started in Seconds</h2>
+            {/* --- MODIFICATION END --- */}
             <p className="text-xl text-neutral-400 max-w-2xl mx-auto">Three simple steps to watch together</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto relative">
-            {/* --- MODIFICATION START: Connecting line adjustment --- */}
             <div className="hidden md:block absolute top-10 left-[15%] right-[15%] h-0.5 bg-gradient-to-r from-transparent via-blue-500/30 to-transparent z-0" />
-            {/* --- MODIFICATION END --- */}
 
             {/* Step 1 */}
-            <div className="relative text-center group z-10"> {/* Added z-10 */}
+            <div className="relative text-center group z-10">
               <div className="relative inline-flex items-center justify-center mb-8">
                 <div className="absolute inset-0 bg-blue-500 rounded-full blur-xl opacity-50 group-hover:opacity-75 transition-opacity" />
                 <div className="relative w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center text-3xl font-black shadow-2xl shadow-blue-500/50 group-hover:scale-110 transition-transform">
@@ -266,7 +268,7 @@ export default function LandingPage() {
             </div>
 
             {/* Step 2 */}
-            <div className="relative text-center group z-10"> {/* Added z-10 */}
+            <div className="relative text-center group z-10">
               <div className="relative inline-flex items-center justify-center mb-8">
                 <div className="absolute inset-0 bg-purple-500 rounded-full blur-xl opacity-50 group-hover:opacity-75 transition-opacity" />
                 <div className="relative w-20 h-20 bg-gradient-to-br from-purple-500 to-purple-600 rounded-full flex items-center justify-center text-3xl font-black shadow-2xl shadow-purple-500/50 group-hover:scale-110 transition-transform">
@@ -280,7 +282,7 @@ export default function LandingPage() {
             </div>
 
             {/* Step 3 */}
-            <div className="relative text-center group z-10"> {/* Added z-10 */}
+            <div className="relative text-center group z-10">
               <div className="relative inline-flex items-center justify-center mb-8">
                 <div className="absolute inset-0 bg-pink-500 rounded-full blur-xl opacity-50 group-hover:opacity-75 transition-opacity" />
                 <div className="relative w-20 h-20 bg-gradient-to-br from-pink-500 to-pink-600 rounded-full flex items-center justify-center text-3xl font-black shadow-2xl shadow-pink-500/50 group-hover:scale-110 transition-transform">
@@ -297,7 +299,7 @@ export default function LandingPage() {
           <div className="text-center mt-16">
             <Link to="/login">
               <button className="group relative inline-flex items-center justify-center rounded-xl text-lg font-bold transition-all h-14 px-10 bg-gradient-to-r from-blue-600 to-blue-500 text-white hover:from-blue-700 hover:to-blue-600 hover:shadow-2xl hover:shadow-blue-500/50 hover:scale-105">
-                <span className="relative z-10">Try It Now - It's Free</span>
+                <span className="relative z-10">Try It Now</span>
                 <Sparkles className="ml-2 w-5 h-5" />
               </button>
             </Link>
@@ -309,7 +311,9 @@ export default function LandingPage() {
       <section id="faq" className="relative py-24 px-4 sm:px-6 lg:px-8">
         <div className="max-w-4xl mx-auto relative z-10">
           <div className="text-center mb-16">
-            <h2 className="text-5xl sm:text-6xl font-black mb-6 bg-gradient-to-r from-white to-neutral-400 bg-clip-text text-transparent">Frequently Asked Questions</h2>
+            {/* --- MODIFICATION START: Adjusted text size --- */}
+            <h2 className="text-4xl sm:text-6xl font-black mb-6 bg-gradient-to-r from-white to-neutral-400 bg-clip-text text-transparent">Frequently Asked Questions</h2>
+            {/* --- MODIFICATION END --- */}
             <p className="text-xl text-neutral-400">Everything you need to know about Scene-Share</p>
           </div>
 
