@@ -1,4 +1,4 @@
-// src/App.jsx 
+// src/App.jsx
 import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
@@ -6,11 +6,13 @@ import { useToast } from './context/ToastContext';
 import { auth, updateProfile } from './firebase';
 import { sanitizeInput, sanitizeRoomId } from './utils/sanitize';
 
-import ErrorBoundary from './components/ErrorBoundary'; 
+import ErrorBoundary from './components/ErrorBoundary';
 import ProtectedRoute from './components/routes/ProtectedRoute.jsx';
 import Room from './components/routes/Room';
 import './index.css';
 
+// Lazy load components
+const LandingPage = lazy(() => import('./pages/LandingPage')); // <-- Import LandingPage
 const LoginPage = lazy(() => import('./pages/LoginPage'));
 const LobbyPage = lazy(() => import('./pages/LobbyPage'));
 const UsernameModal = lazy(() => import('./components/UsernameModal'));
@@ -19,8 +21,8 @@ const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || '';
 
 function LoadingFallback() {
   return (
-    <div className="min-h-screen bg-white dark:bg-black flex items-center justify-center">
-      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black dark:border-white"></div>
+    <div className="min-h-screen bg-neutral-950 flex items-center justify-center">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
     </div>
   );
 }
@@ -44,18 +46,22 @@ export default function App() {
   }, [user]);
 
   const handleUpdateUsername = async (newUsername) => {
-    // --- MODIFICATION START ---
-    // Use auth.currentUser directly to ensure you have the full Firebase user object.
     if (!auth.currentUser) return;
     const sanitizedUsername = sanitizeInput(newUsername);
     if (sanitizedUsername) {
       try {
         await updateProfile(auth.currentUser, { displayName: sanitizedUsername });
-        setUser(auth.currentUser);
-        
+        // Manually update the user object in context after profile update
+        const updatedUser = { ...auth.currentUser, displayName: sanitizedUsername };
+        setUser(updatedUser); // Update context state
+
         setShowUsernameModal(false);
         setIsNewUser(false);
         addToast('Username updated successfully!', 'success');
+        // Redirect to lobby after setting username if they were new
+        if (isNewUser) {
+           navigate('/lobby');
+        }
       } catch (error) {
         console.error("Error updating profile: ", error);
         addToast(`Error updating username: ${error.message}`, 'error');
@@ -64,9 +70,14 @@ export default function App() {
   };
 
   const handleCreateRoom = async () => {
+     if (!user) {
+       addToast('Please log in to create a room.', 'error');
+       navigate('/login');
+       return;
+     }
     const roomCode = Math.floor(100000 + Math.random() * 900000).toString();
     try {
-        const idToken = await user.getIdToken(); 
+        const idToken = await user.getIdToken();
         const response = await fetch(`${BACKEND_URL}/create-room`, {
             method: 'POST',
             headers: {
@@ -89,6 +100,11 @@ export default function App() {
   };
 
   const handleJoinRoom = (id) => {
+    if (!user) {
+       addToast('Please log in to join a room.', 'error');
+       navigate('/login');
+       return;
+     }
     const sanitizedId = sanitizeRoomId(id);
     if (sanitizedId && sanitizedId.length >= 6) {
       navigate(`/room/${sanitizedId}`, { state: { isHost: false } });
@@ -101,15 +117,43 @@ export default function App() {
     setIsNewUser(false);
     setShowUsernameModal(true);
   };
-  
+
   return (
     <ErrorBoundary>
       <Suspense fallback={<LoadingFallback />}>
         {showUsernameModal && <UsernameModal onSubmit={handleUpdateUsername} isNewUser={isNewUser} />}
         <Routes>
-          <Route path="/login" element={user ? <Navigate to="/" /> : <LoginPage />} />
-          <Route path="/" element={<ProtectedRoute><LobbyPage onCreateRoom={handleCreateRoom} onJoinRoom={handleJoinRoom} onEditUsername={openEditUsernameModal} /></ProtectedRoute>} />
-          <Route path="/room/:roomId" element={<ProtectedRoute><Room /></ProtectedRoute>} />
+          {/* Landing page is now the root and public */}
+          <Route path="/" element={<LandingPage />} />
+
+          {/* Login page: Redirect logged-in users to the lobby */}
+          <Route
+            path="/login"
+            element={user ? <Navigate to="/lobby" /> : <LoginPage />}
+          />
+
+          {/* Lobby page is protected */}
+          <Route
+             path="/lobby"
+             element={
+               <ProtectedRoute>
+                 <LobbyPage
+                   onCreateRoom={handleCreateRoom}
+                   onJoinRoom={handleJoinRoom}
+                   onEditUsername={openEditUsernameModal}
+                 />
+               </ProtectedRoute>
+             }
+           />
+
+          {/* Room page remains protected */}
+          <Route
+            path="/room/:roomId"
+            element={<ProtectedRoute><Room /></ProtectedRoute>}
+          />
+
+           {/* Redirect any unknown paths to the landing page */}
+          <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </Suspense>
     </ErrorBoundary>
