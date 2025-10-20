@@ -1,5 +1,6 @@
 // src/pages/LobbyPage.jsx
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom'; // Import Link
 import { useAuth } from '../context/AuthContext';
 import { sanitizeInput } from '../utils/sanitize';
 import { Button } from '../components/ui/Button';
@@ -20,7 +21,11 @@ const LobbyPage = ({ onCreateRoom, onJoinRoom, onEditUsername }) => {
   return (
     <div className="min-h-screen bg-neutral-950 text-white transition-colors duration-300">
        <header className="absolute top-0 left-0 right-0 p-6 flex justify-between items-center z-20">
-          <h1 className="text-xl font-bold">Scene-Share</h1>
+          {/* --- MODIFICATION START --- */}
+          <Link to="/" className="text-xl font-bold">
+            Scene-Share
+          </Link>
+          {/* --- MODIFICATION END --- */}
           <div className="flex items-center gap-2">
             <div className="relative">
               <Button onClick={() => setShowMenu(!showMenu)} variant="ghost" size="icon">
