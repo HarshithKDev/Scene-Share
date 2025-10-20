@@ -9,11 +9,47 @@ export default function LandingPage() {
 
   const scrollToSection = (id) => {
     const element = document.getElementById(id);
-    if (element) {
-      element.scrollIntoView({ behavior: 'smooth' });
-      setMobileMenuOpen(false);
+    const header = document.querySelector('header'); // Get the fixed header element
+
+    if (element && header) {
+      const headerHeight = header.offsetHeight;
+      const elementHeight = element.offsetHeight;
+      const elementPosition = element.offsetTop;
+
+      // Calculate the available viewport height below the header
+      const viewportHeight = window.innerHeight - headerHeight;
+
+      // Calculate the desired scroll position to center the element
+      // Target position for the *top* of the element relative to the document top.
+      // We want the space above the element (within the visible viewport) to be (viewportHeight - elementHeight) / 2.
+      // So the element's top should be at headerHeight + (viewportHeight - elementHeight) / 2 relative to the viewport top.
+      // The window's scrollY should therefore be elementPosition - (headerHeight + (viewportHeight - elementHeight) / 2)
+      let calculatedScrollY = elementPosition - headerHeight - ((viewportHeight - elementHeight) / 2);
+
+      // Clamp the scroll position:
+      // Can't scroll higher than placing the element top just below the header
+      const topClamp = elementPosition - headerHeight;
+      // Also, ensure we don't try to scroll negative (if element is near the top)
+      calculatedScrollY = Math.max(0, calculatedScrollY);
+
+      // If the element is taller than the viewport, just align its top below the header
+      if (elementHeight >= viewportHeight) {
+          calculatedScrollY = topClamp;
+      }
+
+      window.scrollTo({
+        top: calculatedScrollY,
+        behavior: 'smooth'
+      });
+
+      setMobileMenuOpen(false); // Close mobile menu if open
+    } else if (element) {
+        // Fallback
+        element.scrollIntoView({ behavior: 'smooth' });
+        setMobileMenuOpen(false);
     }
   };
+
 
   const faqs = [
     {
