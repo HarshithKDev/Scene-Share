@@ -1,5 +1,6 @@
 // src/pages/LoginPage.jsx
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom'; 
 import { auth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, googleProvider } from '../firebase';
 import { useToast } from '../context/ToastContext'; 
 import { Button } from '../components/ui/Button';
@@ -68,9 +69,11 @@ const LoginPage = () => {
   return (
     <div className="min-h-screen bg-neutral-950 text-white flex items-center justify-center p-4 relative">
       <div className="w-full max-w-md">
-        <h1 className="text-5xl font-bold text-center mb-8 tracking-tight bg-gradient-to-r from-white to-blue-200 bg-clip-text text-transparent"> {/* Added gradient classes */}
-          Scene-Share
-        </h1>
+        <Link to="/" className="block text-center mb-8"> {/* Wrap h1 in Link */}
+          <h1 className="text-5xl font-bold tracking-tight bg-gradient-to-r from-white to-blue-200 bg-clip-text text-transparent inline-block"> {/* Apply gradient and inline-block */}
+            Scene-Share
+          </h1>
+        </Link>
 
         <Card>
           <CardContent className="p-6">
