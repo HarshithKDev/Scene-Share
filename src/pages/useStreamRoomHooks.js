@@ -336,7 +336,7 @@ export const useStreamRoomHooks = ({ isHost, hostUid, roomId, token, user, appId
           optimizationMode: "motion",
         },
         {
-          encoderConfig: "high_quality_stereo",
+          encoderConfig: "high_quality", // Mono 48kHz to prevent phase cancellation
           AEC: false,
           ANS: false,
           AGC: false
