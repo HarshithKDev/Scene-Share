@@ -194,19 +194,6 @@ const StreamRoomLayout = ({
     };
   }, [hostScreenUser]);
 
-  const screenAudioTrack = audioTracks?.find(t => t.getUserId().toString().endsWith('-screen'));
-
-  useEffect(() => {
-    if (screenAudioTrack) {
-      screenAudioTrack.play();
-    }
-    return () => {
-      if (screenAudioTrack) {
-        screenAudioTrack.stop();
-      }
-    };
-  }, [screenAudioTrack]);
-
   const renderParticipants = (cardClassName) => (
     <>
       <ParticipantCard

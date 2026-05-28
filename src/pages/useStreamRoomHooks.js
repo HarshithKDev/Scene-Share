@@ -153,6 +153,11 @@ export const useStreamRoomHooks = ({ isHost, hostUid, roomId, token, user, appId
         setIsMoviePlaying(true);
         setScreenShareError(null);
 
+        if (mediaType === 'audio' && user.audioTrack) {
+          console.log('🔊 Playing screen share audio directly');
+          user.audioTrack.play();
+        }
+
         if (mediaType === 'video' && user.videoTrack) {
           user.videoTrack.on('track-ended', () => {
             console.log('📺 Screen share track ended');
@@ -324,12 +329,7 @@ export const useStreamRoomHooks = ({ isHost, hostUid, roomId, token, user, appId
           },
           optimizationMode: "motion",
         },
-        {
-          encoderConfig: "high_quality_stereo",
-          AEC: false,
-          ANS: false,
-          AGC: false
-        }
+        "enable"
       );
     } catch (error) {
       if (error.code === 'SCREEN_SHARING_NOT_SUPPORTED') {
