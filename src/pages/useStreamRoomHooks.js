@@ -335,7 +335,12 @@ export const useStreamRoomHooks = ({ isHost, hostUid, roomId, token, user, appId
           },
           optimizationMode: "motion",
         },
-        "auto"
+        {
+          encoderConfig: "high_quality_stereo",
+          AEC: false,
+          ANS: false,
+          AGC: false
+        }
       );
     } catch (error) {
       if (error.code === 'SCREEN_SHARING_NOT_SUPPORTED') {
@@ -352,6 +357,26 @@ export const useStreamRoomHooks = ({ isHost, hostUid, roomId, token, user, appId
           "disable"
         );
       }
+      
+      // If they shared Entire Screen on macOS, or forgot to check the box, 
+      // the high-quality audio object strict mode will throw this error. 
+      // Fallback to video-only so it doesn't crash.
+      if (error.code === 'SHARE_AUDIO_NOT_ALLOWED' || (error.message && error.message.includes('SHARE_AUDIO_NOT_ALLOWED'))) {
+        console.warn("Audio capture not allowed or not supported for this source. Falling back to video-only screen share.");
+        return await AgoraRTC.createScreenVideoTrack(
+          {
+            encoderConfig: {
+                width: 1920,
+                height: 1080,
+                frameRate: 30,
+                bitrateMax: 3000,
+            },
+            optimizationMode: "motion",
+          }, 
+          "disable"
+        );
+      }
+      
       throw error;
     }
   }, []);
