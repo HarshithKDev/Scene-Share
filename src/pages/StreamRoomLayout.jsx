@@ -65,6 +65,7 @@ const ParticipantCard = ({ user, isSelf, selfViewTrack, micOn, videoOn, isActive
               <RemoteUser
                 user={user}
                 playVideo={user.hasVideo}
+                playAudio={user.hasAudio}
                 style={{ width: '100%', height: '100%', objectFit: 'cover' }}
               />
               {!user.hasVideo && (
@@ -188,8 +189,12 @@ const StreamRoomLayout = ({
     if (container && hostScreenUser?.videoTrack) {
       hostScreenUser.videoTrack.play(container, { fit: 'contain' });
     }
+    if (hostScreenUser?.audioTrack) {
+      hostScreenUser.audioTrack.play();
+    }
     return () => {
       hostScreenUser?.videoTrack?.stop();
+      hostScreenUser?.audioTrack?.stop();
     };
   }, [hostScreenUser]);
 

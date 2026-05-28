@@ -7,6 +7,7 @@ const admin = require('firebase-admin');
 const rateLimit = require('express-rate-limit');
 
 const app = express();
+app.set('trust proxy', 1); // Trust the reverse proxy for accurate IP rate limiting
 app.use(express.json());
 
 // --- CORS Configuration ---
@@ -18,8 +19,6 @@ const allowedOrigins = [
 
 const corsOptions = {
   origin: (origin, callback) => {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
     if (allowedOrigins.indexOf(origin) === -1) {
       const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
       return callback(new Error(msg), false);
@@ -52,7 +51,7 @@ try {
 } catch (error) {
   console.error('CRITICAL: Error initializing Firebase Admin SDK. Please check your FIREBASE_SERVICE_ACCOUNT_KEY environment variable.');
   console.error(error);
-  // We will let the server start, but endpoints will fail with a clear message.
+  process.exit(1); // Fail fast
 }
 
 const db = admin.apps.length ? admin.firestore() : null;
@@ -172,6 +171,13 @@ app.post('/get-agora-token', apiLimiter, checkFirebaseInit, verifyFirebaseToken,
     }, { merge: true });
 
     const isScreenShare = req.body.uid && req.body.uid === `${requestingUid}-screen`;
+    
+    // SECURITY: Only the host should be able to share their screen
+    if (isScreenShare && hostUid !== requestingUid) {
+        console.log(`❌ Forbidden: Non-host [${requestingUid}] tried to screen share in [${channelName}]`);
+        return res.status(403).json({ error: 'Forbidden: Only the host can share their screen.' });
+    }
+
     const tokenUid = isScreenShare ? req.body.uid : requestingUid;
 
     const sanitizedChannelName = channelName.replace(/[^a-zA-Z0-9_-]/g, '');
@@ -277,6 +283,27 @@ app.use((err, req, res, next) => {
   });
 });
 
+
+// Periodic Database Cleanup for expired rooms
+setInterval(async () => {
+    try {
+        if (!roomsCollection) return;
+        const now = admin.firestore.Timestamp.now();
+        const snapshot = await roomsCollection.where('expiresAt', '<', now).get();
+        if (snapshot.empty) return;
+
+        const batch = db.batch();
+        let count = 0;
+        snapshot.docs.forEach((doc) => {
+            batch.delete(doc.ref);
+            count++;
+        });
+        await batch.commit();
+        console.log(`🧹 Cleaned up ${count} expired room(s).`);
+    } catch (error) {
+        console.error('Failed to clean up expired rooms:', error);
+    }
+}, 60 * 60 * 1000); // Run every hour
 
 if (require.main === module) {
   const PORT = process.env.PORT || 8080;

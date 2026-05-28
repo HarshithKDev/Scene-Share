@@ -59,7 +59,9 @@ export const fetchAgoraToken = async (channelName, uid, getIdToken) => {
         if (!response.ok) {
             // Include status in the error message to detect 404s
             const errorText = await response.text();
-            throw new Error(`HTTP ${response.status}: ${errorText}`);
+            const err = new Error(`HTTP ${response.status}: ${errorText}`);
+            err.status = response.status;
+            throw err;
         }
 
         const data = await response.json();

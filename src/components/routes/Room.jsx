@@ -40,7 +40,7 @@ const Room = () => {
                 // Comment out the console.error to prevent logging expected 404s
                 // console.error('Token fetch error:', err);
                 setIsHost(false); 
-                if (err.message.includes('404')) {
+                if (err.status === 404 || err.message.includes('404')) {
                     addToast('Please enter a valid Room ID.', 'error');
                     navigate('/');
                 } else {

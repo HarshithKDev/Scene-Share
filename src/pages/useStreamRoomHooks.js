@@ -314,27 +314,37 @@ export const useStreamRoomHooks = ({ isHost, hostUid, roomId, token, user, appId
 
   const createScreenTrack = useCallback(async () => {
     try {
-      return await AgoraRTC.createScreenVideoTrack({
-        encoderConfig: {
-            width: 1280,
-            height: 1080,
-            frameRate: 30,
-            bitrateMax: 2000,
+      return await AgoraRTC.createScreenVideoTrack(
+        {
+          encoderConfig: {
+              width: 1920,
+              height: 1080,
+              frameRate: 30,
+              bitrateMax: 3000,
+          },
+          optimizationMode: "motion",
         },
-        optimizationMode: "motion",
-        withAudio: "enable",
-      });
+        {
+          encoderConfig: "high_quality_stereo",
+          AEC: false,
+          ANS: false,
+          AGC: false
+        }
+      );
     } catch (error) {
       if (error.code === 'SCREEN_SHARING_NOT_SUPPORTED') {
-        return await AgoraRTC.createScreenVideoTrack({
+        return await AgoraRTC.createScreenVideoTrack(
+          {
             encoderConfig: {
-                width: 1280,
+                width: 1920,
                 height: 1080,
                 frameRate: 30,
-                bitrateMax: 2000,
+                bitrateMax: 3000,
             },
             optimizationMode: "motion",
-        }, "disable");
+          }, 
+          "disable"
+        );
       }
       throw error;
     }
@@ -494,7 +504,7 @@ export const useStreamRoomHooks = ({ isHost, hostUid, roomId, token, user, appId
     return () => {
       if (localMicrophoneTrackRef.current) {
         localMicrophoneTrackRef.current.stop();
-        localCameraTrackRef.current.close();
+        localMicrophoneTrackRef.current.close();
       }
       if (localCameraTrackRef.current) {
         localCameraTrackRef.current.stop();

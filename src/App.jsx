@@ -51,6 +51,7 @@ export default function App() {
     if (sanitizedUsername) {
       try {
         await updateProfile(auth.currentUser, { displayName: sanitizedUsername });
+        await auth.currentUser.getIdToken(true); // Force token refresh
         // Manually update the user object in context after profile update
         const updatedUser = { ...auth.currentUser, displayName: sanitizedUsername };
         setUser(updatedUser); // Update context state
@@ -69,34 +70,65 @@ export default function App() {
     }
   };
 
+  const generateRoomCode = () => {
+    return Math.random().toString(36).substring(2, 6).toUpperCase() + '-' + 
+           Math.random().toString(36).substring(2, 6).toUpperCase() + '-' + 
+           Math.random().toString(36).substring(2, 6).toUpperCase();
+  };
+
   const handleCreateRoom = async () => {
      if (!user) {
        addToast('Please log in to create a room.', 'error');
        navigate('/login');
        return;
      }
-    const roomCode = Math.floor(100000 + Math.random() * 900000).toString();
-    try {
-        const idToken = await user.getIdToken();
-        const response = await fetch(`${BACKEND_URL}/create-room`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${idToken}`,
-            },
-            body: JSON.stringify({ channelName: roomCode }),
-        });
+     
+    let attempts = 0;
+    const maxAttempts = 3;
+    let roomCode;
 
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || 'Server responded with an error');
+    while (attempts < maxAttempts) {
+        roomCode = generateRoomCode();
+        try {
+            const idToken = await user.getIdToken();
+            const response = await fetch(`${BACKEND_URL}/create-room`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${idToken}`,
+                },
+                body: JSON.stringify({ channelName: roomCode }),
+            });
+
+            if (!response.ok) {
+                if (response.status === 409) {
+                    attempts++;
+                    continue; // Room exists, try another code
+                }
+                const text = await response.text();
+                let errorMessage = `HTTP Error ${response.status}`;
+                try {
+                    const errorData = JSON.parse(text);
+                    if (errorData && errorData.error) {
+                        errorMessage = errorData.error;
+                    }
+                } catch (e) {
+                    // Not JSON, fallback to text if available
+                    if (text) errorMessage = text;
+                }
+                throw new Error(errorMessage);
+            }
+
+            navigate(`/room/${roomCode}`, { state: { isHost: true } });
+            return; // Success
+        } catch (error) {
+            console.error("Failed to create room on server:", error);
+            addToast(`Failed to create room: ${error.message}`, 'error');
+            return; // Break on network errors or other unknown errors
         }
-
-        navigate(`/room/${roomCode}`, { state: { isHost: true } });
-    } catch (error) {
-        console.error("Failed to create room on server:", error);
-        addToast(`Failed to create room: ${error.message}`, 'error');
     }
+    
+    addToast('Failed to generate a unique room code. Please try again.', 'error');
   };
 
   const handleJoinRoom = (id) => {
