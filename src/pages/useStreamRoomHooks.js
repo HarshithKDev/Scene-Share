@@ -113,6 +113,17 @@ export const useStreamRoomHooks = ({ isHost, hostUid, roomId, token, user, appId
     }
   }, [isMoviePlaying, isHost]);
 
+  // Watch Party Auto-Mute
+  useEffect(() => {
+    if (isMoviePlaying) {
+      console.log('🔇 Watch Party: Auto-muting microphone');
+      setMicOn(false);
+      if (localMicrophoneTrackRef.current) {
+        localMicrophoneTrackRef.current.setEnabled(false).catch(e => console.error("Auto-mute failed", e));
+      }
+    }
+  }, [isMoviePlaying]);
+
   const validateToken = useCallback((token, appId, channelName, uid) => {
     if (!token) {
       console.error('❌ Token is null or undefined');

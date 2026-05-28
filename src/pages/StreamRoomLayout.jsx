@@ -171,7 +171,6 @@ const StreamRoomLayout = ({
   const { user } = useAuth();
   const { addToast } = useToast();
   const [copied, setCopied] = useState(false);
-  const mainVideoContainerRef = useRef(null);
   const isDesktop = useMediaQuery('(min-width: 768px)');
 
   const participantUsers = remoteUsers.filter(u => !u.uid.toString().endsWith('-screen'));
@@ -183,30 +182,6 @@ const StreamRoomLayout = ({
       setTimeout(() => setCopied(false), 2000);
     });
   };
-
-  useEffect(() => {
-    const container = mainVideoContainerRef.current;
-    if (container && hostScreenUser?.videoTrack) {
-      hostScreenUser.videoTrack.play(container, { fit: 'contain' });
-    }
-    return () => {
-      hostScreenUser?.videoTrack?.stop();
-    };
-  }, [hostScreenUser]);
-
-  const screenAudioTrack = audioTracks?.find(t => t.getUserId().toString().endsWith('-screen'));
-
-  useEffect(() => {
-    if (screenAudioTrack) {
-      console.log('🔊 Reactively playing screen audio track!');
-      screenAudioTrack.play();
-    }
-    return () => {
-      if (screenAudioTrack) {
-        screenAudioTrack.stop();
-      }
-    };
-  }, [screenAudioTrack]);
 
   const renderParticipants = (cardClassName) => (
     <>
@@ -254,8 +229,15 @@ const StreamRoomLayout = ({
           <ConnectionStateOverlay state={connectionState} />
           {connectionState === 'CONNECTED' && (
             <>
-              {isMoviePlaying && hostScreenUser?.videoTrack ? (
-                <div ref={mainVideoContainerRef} className='w-full h-full bg-black rounded-lg'></div>
+              {isMoviePlaying && hostScreenUser ? (
+                <div className="w-full h-full bg-black rounded-lg overflow-hidden relative">
+                    <RemoteUser 
+                        user={hostScreenUser} 
+                        playVideo={true} 
+                        playAudio={true} 
+                        style={{ width: '100%', height: '100%', objectFit: 'contain' }} 
+                    />
+                </div>
               ) : (
                 <div className='text-center text-neutral-500'>
                   <Monitor size={64} className="mx-auto mb-4" />
