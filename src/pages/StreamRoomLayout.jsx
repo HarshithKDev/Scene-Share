@@ -166,7 +166,7 @@ const StreamRoomLayout = ({
   isHost, hostUid, selfViewTrack, remoteUsers, toggleMic, toggleCamera, micOn, cameraOn, handleLeave,
   handleStartStream, isMoviePlaying, roomId, handleStopMovie, hostScreenUser, screenShareError,
   activeSpeakerUid, connectionState, isStartingStream, participantDetails, videoStats,
-  showNerdStats, setShowNerdStats
+  showNerdStats, setShowNerdStats, audioTracks
 }) => {
   const { user } = useAuth();
   const { addToast } = useToast();
@@ -189,14 +189,23 @@ const StreamRoomLayout = ({
     if (container && hostScreenUser?.videoTrack) {
       hostScreenUser.videoTrack.play(container, { fit: 'contain' });
     }
-    if (hostScreenUser?.audioTrack) {
-      hostScreenUser.audioTrack.play();
-    }
     return () => {
       hostScreenUser?.videoTrack?.stop();
-      hostScreenUser?.audioTrack?.stop();
     };
   }, [hostScreenUser]);
+
+  const screenAudioTrack = audioTracks?.find(t => t.getUserId().toString().endsWith('-screen'));
+
+  useEffect(() => {
+    if (screenAudioTrack) {
+      screenAudioTrack.play();
+    }
+    return () => {
+      if (screenAudioTrack) {
+        screenAudioTrack.stop();
+      }
+    };
+  }, [screenAudioTrack]);
 
   const renderParticipants = (cardClassName) => (
     <>

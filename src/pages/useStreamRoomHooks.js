@@ -621,5 +621,6 @@ export const useStreamRoomHooks = ({ isHost, hostUid, roomId, token, user, appId
     videoStats,
     showNerdStats,
     setShowNerdStats,
+    audioTracks,
   };
 };

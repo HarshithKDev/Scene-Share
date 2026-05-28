@@ -35,6 +35,7 @@ const StreamRoomPage = ({ isHost, hostUid, roomId, token, onLeaveRoom, appId, cl
     videoStats,
     showNerdStats,
     setShowNerdStats,
+    audioTracks,
   } = useStreamRoomHooks({
     isHost,
     hostUid, // Pass hostUid to the hook
@@ -122,6 +123,7 @@ const StreamRoomPage = ({ isHost, hostUid, roomId, token, onLeaveRoom, appId, cl
         videoStats={videoStats}
         showNerdStats={showNerdStats}
         setShowNerdStats={setShowNerdStats}
+        audioTracks={audioTracks}
       />
     </div>
   );
