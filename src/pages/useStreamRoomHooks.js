@@ -329,7 +329,7 @@ export const useStreamRoomHooks = ({ isHost, hostUid, roomId, token, user, appId
           },
           optimizationMode: "motion",
         },
-        "enable"
+        "auto"
       );
     } catch (error) {
       if (error.code === 'SCREEN_SHARING_NOT_SUPPORTED') {
