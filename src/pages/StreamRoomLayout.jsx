@@ -234,7 +234,7 @@ const StreamRoomLayout = ({
                     <RemoteUser 
                         user={hostScreenUser} 
                         playVideo={true} 
-                        playAudio={true} 
+                        playAudio={!isHost} 
                         style={{ width: '100%', height: '100%', objectFit: 'contain' }} 
                     />
                 </div>
